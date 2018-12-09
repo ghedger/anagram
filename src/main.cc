@@ -24,6 +24,8 @@
 #include <stdio.h>
 #include <assert.h>
 #include <memory.h>
+#include <unistd.h>
+#include <signal.h>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -31,6 +33,7 @@
 #include <unordered_map>
 #include <algorithm>
 
+#include "anagram_common.h"
 #include "templ_node.h"
 #include "ternary_tree.h"
 #include "anagram_log.h"
@@ -131,15 +134,20 @@ void OutputPreamble()
 // Print basic program usage/invocation
 void PrintUsage()
 {
+  using namespace std;
   OutputPreamble();
-  std::cout << "Anagram" << std::endl;
-  std::cout << "Copyright (C) 2018 Gregory Hedger" << std::endl;
-  std::cout << "Usage:" << std::endl;
-  std::cout << "\tanagram [flags] the phrase or word" << std::endl;
-  std::cout << "Example:" << std::endl;
-  std::cout << "\nanagram hello world" << std::endl;
-  std::cout << "Flags:" << std::endl;
-  std::cout << "\t-v set verbosity: -v0 none -v1 info -v2 debug" << std::endl;
+  cout << "Anagram" << endl;
+  cout << "Copyright (C) 2018 Gregory Hedger" << endl;
+  cout << "Usage:" << endl;
+  cout << "\tanagram [flags] the phrase or word" << endl;
+  cout << "Example:" << endl;
+  cout << "\nanagram hello world" << endl << endl;
+  cout << "Flags:" << endl;
+  cout << "\t-v set verbosity:" << endl;
+  cout << "\t\t-v0 terse: anagrams only, no formatting" << endl;
+  cout << "\t\t-v1 normal" << endl;
+  cout << "\t\t-v2 info" << endl;
+  cout << "\t\t-v3 debug" << endl;
 }
 
 // GetCharCountMap
@@ -294,7 +302,7 @@ int AddAndCompare(
 // CombineSubsetsRecurse
 // Recurse into subsets, additively updating candidate count.
 // We have a candidate count passed in, and we will compare
-// against the other words to get the second candidate count.
+/// against the other words to get the second candidate count.
 // until we reach a full combo.
 // Entry: word
 //        subset unordered_map
@@ -310,7 +318,6 @@ void CombineSubsetsRecurse(
 )
 {
   using namespace std;
-  //cout << "**** " << word << endl;
   unordered_map< char, size_t> candidate_count_b;
   candidate_count_b.reserve(26);
   for (std::unordered_map<std::string, int>::const_iterator i = start_i; i != subset.end(); ++i) {
@@ -336,6 +343,7 @@ void CombineSubsetsRecurse(
       output_phrase += " ";
       output_phrase += i->first;
       output[output_phrase] = 1;
+      VERBOSE_LOG(LOG_NORMAL, "\r" << "Anagrams found: " << output.size() << "\r");
     } else if (comparison_result < 0) {
       // The two candidates do not make a full anagram; Since the letter count
       // permutation is still less than that of master, the two candidates
@@ -456,17 +464,21 @@ void GetAnagrams(
   }
 
   // Iterates through all the findings and spit them out
-  /*
-  cout << "PARTIALS:" << endl;
-  for (auto i : subset ) {
-    cout << i.first << endl;
-  }
-  */
   VERBOSE_LOG(LOG_DEBUG, "Step 2: Combine partials..." << endl);
 
   // Step 2: Now we have a complete set of subsets; we must now combine them to
   // obtain combinations matching the input word character count permutation.
   CombineSubsets(word, subset, anagrams);
+}
+
+// SigtermHandler
+// This is needed so that, if the user hits Ctrl-C, the curser
+// can be set back to normal.  It exits the program.
+// Entry: signal type
+void SigtermHandler(int signal)
+{
+  std::cout << COUT_SHOWCURSOR << COUT_NORMAL_WHITE << std::endl;
+  exit(1);
 }
 
 // main
@@ -479,6 +491,17 @@ int main(int argc, const char *argv[])
   using namespace std;
   TNode *root_node = NULL;
   TernaryTree t;
+
+  // This hides the cursor and sets up a signal handler to re-show it in
+  // case user hits CTRL-C
+  struct sigaction sigIntHandler;
+  sigIntHandler.sa_handler = SigtermHandler;
+  sigemptyset(&sigIntHandler.sa_mask);
+  sigIntHandler.sa_flags = 0;
+  sigaction(SIGINT, &sigIntHandler, NULL);
+
+  // Sets a sane level that allows UI but not debug messages
+  SET_VERBOSITY_LEVEL(LOG_NORMAL);
 
   // This parses the arguments and takes subsequent non-dashed arguments
   // as the input (no quotes required)
@@ -495,8 +518,8 @@ int main(int argc, const char *argv[])
           case 'v': {
               int verbosity;
               if (isdigit(verbosity = argv[i][2])) {
-                LOG_LEVEL ll = (LOG_LEVEL) (verbosity - (int) '0');
-                SET_VERBOSITY_LEVEL(ll);
+                LOG_LEVEL log_level = (LOG_LEVEL) (verbosity - (int) '0');
+                SET_VERBOSITY_LEVEL(log_level);
               }
             }
             break;
@@ -524,15 +547,19 @@ int main(int argc, const char *argv[])
     }
   }
 
-  // This rtrims the word
+  // This rtrims and lowercases the word
   word.erase(std::find_if(word.rbegin(), word.rend(), [](int c) {
         return !std::isspace(c);
     }).base(), word.end());
+  std::transform(word.begin(), word.end(), word.begin(), ::tolower);
 
   if (!word.length()) {
     PrintUsage();
     return -1;
   }
+
+  // This will hide the cursor and set the color
+  VERBOSE_LOG(LOG_NORMAL, COUT_HIDECURSOR << COUT_BOLD_YELLOW << endl);
 
   // This reads the dictionary file and gathers all the anagrams
   // from our source word.
@@ -542,13 +569,16 @@ int main(int argc, const char *argv[])
   GetAnagrams(t, root_node, word.c_str(), anagrams);
 
   // Iterates through all the findings and spit them out to stdout.
-  cout << "ANAGRAMS:" << endl;
+  VERBOSE_LOG(LOG_NORMAL, "\r                         \r"
+    << COUT_BOLD_WHITE << word.c_str()
+    << COUT_BOLD_YELLOW << endl);
   int count = 0;
   for (auto i : anagrams) {
     cout << i.first << endl;
     ++count;
   }
-  cout << count << " ANAGRAMS FOUND." << endl;
+  VERBOSE_LOG(LOG_NORMAL,  COUT_BOLD_WHITE << count << " ANAGRAMS FOUND."
+    << COUT_SHOWCURSOR << endl);
 
   return 0;
 }

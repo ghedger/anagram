@@ -26,6 +26,7 @@
 
 enum _LOG_LEVEL {
   LOG_NONE = 0,
+  LOG_NORMAL,
   LOG_INFO,
   LOG_DEBUG
 };

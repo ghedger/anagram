@@ -1456,7 +1456,6 @@ Byronic
 Byzantine
 Byzantines
 Byzantium
-Ca
 Cabernet
 Cabinet
 Cabinets
@@ -5368,7 +5367,6 @@ Lowery
 Loyang
 Loyd
 Loyola
-Ltd
 Luanda
 Luann
 Lubavitcher
@@ -7161,7 +7159,6 @@ Pliocene
 Plutarch
 Pluto
 Plymouth
-Po
 Pocahontas
 Pocono
 Poconos
