@@ -37,6 +37,7 @@
 #include "templ_node.h"
 #include "ternary_tree.h"
 #include "anagram_log.h"
+#include "occupancy_hash.h"
 
 // CleanString
 // Removes extraneous characters from string
@@ -148,8 +149,8 @@ void PrintUsage()
   cout << "\t\t-v1 normal" << endl;
   cout << "\t\t-v2 info" << endl;
   cout << "\t\t-v3 debug" << endl;
+  cout << "\t-t use std::unordered_map tree structure instead of sparse hash array" << endl;
 }
-
 // GetCharCountMap
 // Returns a unordered_map of the # of letters.
 // Example: "fussy" will return
@@ -403,6 +404,110 @@ void CombineSubsets(
   }
 }
 
+
+// CombineSubsetsRecurseFast
+// Recurse into subsets, additively updating candidate count.
+// We have a candidate count passed in, and we will compare
+/// against the other words to get the second candidate count.
+// until we reach a full combo.
+// Entry: word
+//        subset unordered_map
+//        output unordered_map
+//        candidate combo
+void CombineSubsetsRecurseFast(
+  const char *word,
+  std::unordered_map< std::string, int >& subset,
+  std::unordered_map< std::string, int >& output,
+  OccupancyHash& master_count,
+  OccupancyHash& candidate_count_a,
+  std::unordered_map<std::string, int>::const_iterator& start_i
+)
+{
+  using namespace std;
+  OccupancyHash candidate_count_b;
+  for (std::unordered_map<std::string, int>::const_iterator i = start_i; i != subset.end(); ++i) {
+    // Skip ourselves
+    if (!strcmp(i->first.c_str(), word))
+      continue;
+
+    candidate_count_b.clear();
+    candidate_count_b.GetCharCountMap(i->first.c_str());
+
+    // This checks to for a complete anagram assembled from partials. This is
+    // determined by a permutation equivalency.
+    // The addition will be saved in candidate_count_b.
+    candidate_count_b += candidate_count_a;
+    int comparison_result = candidate_count_b.Compare(master_count);
+
+    if (!comparison_result) {
+      // This combination is a complete anagram; add it to the output,
+      // separating the partials by spaces.
+      string output_phrase = word;
+      output_phrase += " ";
+      output_phrase += i->first;
+      output[output_phrase] = 1;
+
+      VERBOSE_LOG(LOG_NORMAL, "\r" << "Anagrams found: " << output.size() << "\r");
+    } else if (comparison_result < 0) {
+      // The two candidates do not make a full anagram; Since the letter count
+      // permutation is still less than that of master, the two candidates
+      // combined still form a partial.  Below, we combine them in a space-
+      // delimited phrase and recurse.
+      string output_phrase = word;
+      output_phrase += " ";
+      output_phrase += i->first;
+
+      OccupancyHash new_candidate_count;
+      new_candidate_count.GetCharCountMap(output_phrase.c_str());
+      CombineSubsetsRecurseFast(
+        output_phrase.c_str(),
+        subset,
+        output,
+        master_count,
+        new_candidate_count,
+        i
+      );
+    } else {
+      // The two candidates exceed the lexical permutative value of the
+      // master; this combination will not work so continue on...
+    }
+  }
+}
+
+// CombineSubsetsFast
+// Given an input of a master word/phrase, find all combinations of partial words
+// to create complete anagrams.  Spaces in master word are ignored.
+// Entry: master word/phrase
+//        subset unordered_map of partials
+//        output unordered_map
+void CombineSubsetsFast(
+  const char *word,
+  std::unordered_map< std::string, int >& subset,
+  std::unordered_map< std::string, int >& output
+)
+{
+  OccupancyHash master_count, candidate_count;
+  master_count.GetCharCountMap(word);
+  std::unordered_map<std::string, int>::const_iterator i = subset.begin();
+  while (i != subset.end()) {
+    if (!strcmp(i->first.c_str(), word))
+      continue;
+    candidate_count.clear();
+    candidate_count.GetCharCountMap(i->first.c_str());
+
+    // Here we want to get a starting point for our character count
+    // for the candidate, and compare it against the others.
+    CombineSubsetsRecurseFast(
+      i->first.c_str(),
+      subset,
+      output,
+      master_count,
+      candidate_count,
+      i
+    );
+    ++i;
+  }
+}
 // GetAnagrams
 // Entry: pointer to ternary_tree
 //        word to check for anagrams
@@ -410,7 +515,8 @@ void GetAnagrams(
   TernaryTree& t,
   TNode *root_node,
   const char *word,
-  std::unordered_map< std::string, int >& anagrams
+  std::unordered_map< std::string, int >& anagrams,
+  bool use_tree_engine
 )
 {
   using namespace std;
@@ -468,7 +574,11 @@ void GetAnagrams(
 
   // Step 2: Now we have a complete set of subsets; we must now combine them to
   // obtain combinations matching the input word character count permutation.
-  CombineSubsets(word, subset, anagrams);
+  if (use_tree_engine) {
+    CombineSubsets(word, subset, anagrams);
+  } else {
+    CombineSubsetsFast(word, subset, anagrams);
+  }
 }
 
 // SigtermHandler
@@ -505,6 +615,7 @@ int main(int argc, const char *argv[])
 
   // This parses the arguments and takes subsequent non-dashed arguments
   // as the input (no quotes required)
+  bool use_old_engine = false;
   string word;
   if (1 < argc) {
     int i = 1;
@@ -531,6 +642,10 @@ int main(int argc, const char *argv[])
                 t.SetMaxDifference( (int) diff);
               }
             }
+            break;
+          case 't': {
+            use_old_engine = true;
+          }
             break;
 
           default:
@@ -559,14 +674,14 @@ int main(int argc, const char *argv[])
   }
 
   // This will hide the cursor and set the color
-  VERBOSE_LOG(LOG_NORMAL, COUT_HIDECURSOR << COUT_BOLD_YELLOW << endl);
+  ////VERBOSE_LOG(LOG_NORMAL, COUT_HIDECURSOR << COUT_BOLD_YELLOW << endl);
 
   // This reads the dictionary file and gathers all the anagrams
   // from our source word.
   ReadDictionaryFile("dict_no_abbreviations.txt", &t, root_node);
   unordered_map< string, int > anagrams;
   t.SetMaxDifference(0);
-  GetAnagrams(t, root_node, word.c_str(), anagrams);
+  GetAnagrams(t, root_node, word.c_str(), anagrams, use_old_engine);
 
   // Iterates through all the findings and spit them out to stdout.
   VERBOSE_LOG(LOG_NORMAL, "\r                         \r"
