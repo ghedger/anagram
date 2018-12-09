@@ -66,9 +66,9 @@ int GetWordCount(std::ifstream *file)
 // Read dictionary file into our data structure.
 // TODO (RFE): Would be nice to have the tree self-balance
 // instead of reading the sorted file in two halves...
-//
-// @In:     -
-// @Out:    -
+// Entry: path to file
+//        pointer to TernaryTree
+//        pointer to tree root node
 void ReadDictionaryFile(
   const char *path,
   TernaryTree *pTree,
@@ -120,9 +120,6 @@ void ReadDictionaryFile(
 }
 
 // OutputPreamble
-//
-// @In:     -
-// @Out:    -
 void OutputPreamble()
 {
   using namespace std;
@@ -133,117 +130,19 @@ void OutputPreamble()
   cout << "under certain conditions covered by GNU Public License v3.0." << endl;
 }
 
-
-// PrintPrompt
-// output prompt
-//
-// @In:     -
-// @Out:    -
-void PrintPrompt()
-{
-  std::cout << std::endl << ">" ;
-}
-
 // PrintUsage
 // Print basic program usage/invocation
-//
-// @In:     -
-// @Out:    -
 void PrintUsage()
 {
   OutputPreamble();
+  std::cout << "Anagram" << std::endl;
+  std::cout << "Copyright (C) 2018 Gregory Hedger" << std::endl;
   std::cout << "Usage:" << std::endl;
-  std::cout << "dicto [flags]:" << std::endl;
+  std::cout << "\tanagram [flags] the phrase or word" << std::endl;
+  std::cout << "Example:" << std::endl;
+  std::cout << "\nanagram hello world" << std::endl;
   std::cout << "Flags:" << std::endl;
   std::cout << "\t-v set verbosity: -v0 none -v1 info -v2 debug" << std::endl;
-  std::cout << "\t-d set maximum Levenshtein distance, example -d18" << std::endl;
-}
-
-// LEG is used for PrintTraversal to tell what leg the current node is on.
-enum LEG
-{
-  LEG_L   = 0,
-  LEG_C,
-  LEG_R,
-};
-
-// We're going to render into a buffer
-const int screenWidth = 80;
-const int screenHeight = 8;
-static char _renderBuf [ screenWidth * screenHeight ];
-
-// PrintTraversal
-// Render and prints a rudimentary treelike representation to console.
-// Note this is rather rough, added at the end of this demo; it could be
-//  improved.
-//
-// @In:     root_node pointer to root node
-//          leg left, right, or center
-//          htab starting htab
-// @Out:    -
-void PrintTraversal(TNode *pNode, LEG leg, int htab, int depth = 0)
-{
-  int vtab = depth;
-
-  // Initialize render buf if at top
-  if (!depth) {
-    printf("\n");
-    memset(_renderBuf, ' ', sizeof(_renderBuf) );
-    htab = screenWidth >> 1; // set initial htab to center of rendering buffer
-  }
-
-  if (depth > 3)
-    return;
-
-  // Caculate screen layout
-  switch (leg) {
-    case LEG_L:
-      htab -= 22 - (depth << 1);
-      _renderBuf[ htab - 1 + (vtab * screenWidth) ] = '>';
-      break;
-    case LEG_R:
-      htab += 22 - (depth << 1);
-      _renderBuf[ htab - 1 + (vtab * screenWidth) ] = '<';
-      break;
-    case LEG_C:
-      _renderBuf[ htab - 1 + (vtab * screenWidth) ] = '^';
-      break;
-    default:
-      break;
-  }
-
-  // printf("htab: %d depth: %d value: %c\n", htab, depth, pNode->GetKey());
-
-  sprintf(&_renderBuf[ htab + (vtab * screenWidth) ], "%c",  pNode->GetKey());
-  if (pNode->GetLeft() )
-  {
-    PrintTraversal(pNode->GetLeft(), LEG_L, htab, depth + 1);
-  }
-  if (pNode->GetCenter() )
-  {
-    PrintTraversal(pNode->GetCenter(), LEG_C, htab, depth + 1);
-  }
-  if (pNode->GetRight() )
-  {
-    PrintTraversal(pNode->GetRight(), LEG_R, htab, depth + 1);
-  }
-
-  // If we're done, print out the rendered tree
-  if (!depth)
-  {
-    int i, j;
-    for (j = 0; j < screenHeight; j++ )
-    {
-      for (i = 0; i < screenWidth; i++ )
-      {
-        char c = _renderBuf[ i +  (j * screenWidth)];
-        // Replace terminator with space
-        c = c ? c : ' ';
-        putchar(c);
-      }
-      printf("\n" ); // Keep it tabular: print LF every screenWidth columns
-    }
-  }
 }
 
 // GetCharCountMap
@@ -285,7 +184,8 @@ bool MatchCharCounts(const char *word_a, const char *word_b)
   GetCharCountMap(char_count_a, word_a);
   GetCharCountMap(char_count_b, word_b);
   for (auto i : char_count_a) {
-    if (char_count_b.count(i.first) != i.second) {
+    if (!(char_count_b.count(i.first))
+      || char_count_b[i.first] != i.second) {
       result = false;
       break;
     }
@@ -425,8 +325,10 @@ void CombineSubsetsRecurse(
   map<char, size_t> candidate_count_b;
   for (std::map<std::string, int>::const_iterator i = start_i; i != subset.end(); ++i) {
     // Skip ourselves
-    if (!strcmp(i->first.c_str(), word))
-      continue;
+    // Note: Expensive and unnecessary since we use a map<>
+    // Overwrite is cheaper than this check each time
+    //if (!strcmp(i->first.c_str(), word))
+    //  continue;
     candidate_count_b.clear();
     GetCharCountMap(candidate_count_b, i->first.c_str());
     // This checks to for a complete anagram assembled from partials. This is
@@ -452,7 +354,6 @@ void CombineSubsetsRecurse(
       string output_phrase = word;
       output_phrase += " ";
       output_phrase += i->first;
-      output_phrase += " ";
 
       map<char, size_t> new_candidate_count;
       GetCharCountMap(new_candidate_count, output_phrase.c_str());
@@ -487,8 +388,8 @@ void CombineSubsets(
   GetCharCountMap(master_count, word);
   std::map<std::string, int>::const_iterator i = subset.begin();
   while (i != subset.end()) {
-    if (!strcmp(i->first.c_str(), word))
-      continue;
+    //if (!strcmp(i->first.c_str(), word))
+    //  continue;
     candidate_count.clear();
     GetCharCountMap(candidate_count, i->first.c_str());
     // Here we want to get a starting point for our character count
@@ -511,7 +412,7 @@ void GetAnagrams(
   TernaryTree& t,
   TNode *root_node,
   const char *word,
-  std::map< int, std::string >& anagrams
+  std::map< std::string, int >& anagrams
 )
 {
   using namespace std;
@@ -520,7 +421,6 @@ void GetAnagrams(
   // have too many.
   size_t word_len = strlen((const char *)word);
 
-  map< string, int > output;
   map< string, int > subset;
   map< int, string > extrapolation;
 
@@ -548,8 +448,8 @@ void GetAnagrams(
       if ((candidate_len = strlen(candidate)) == word_len) {
         // Does word match against character count?
         if (MatchCharCounts(candidate, word)) {
-          if (!output.count(candidate)) {
-            output[candidate] = 1;
+          if (!anagrams.count(candidate)) {
+            anagrams[candidate] = 1;
           }
         }
       } else {
@@ -576,15 +476,8 @@ void GetAnagrams(
 
   // Step 2: Now we have a complete set of subsets; we must now combine them to
   // obtain combinations matching the input word character count permutation.
-  CombineSubsets(word, subset, output);
-
-  // Iterates through all the findings and spit them out
-  cout << "ANAGRAMS:" << endl;
-  for (auto i : output) {
-    cout << i.first << endl;
-  }
+  CombineSubsets(word, subset, anagrams);
 }
-
 
 // main
 // This is the main entry point and testbed for ternary tree.
@@ -597,11 +490,17 @@ int main(int argc, const char *argv[])
   TNode *root_node = NULL;
   TernaryTree t;
 
-  // parseargs
+  // This parses the arguments and takes subsequent non-dashed arguments
+  // as the input (no quotes required)
+  string word;
   if (1 < argc) {
     int i = 1;
     while (i < argc) {
       if ('-' == argv[i][0]) {
+        if (word.length()) {
+          PrintUsage();
+          return -1;
+        }
         switch(argv[i][1]) {
           case 'v': {
               int verbosity;
@@ -623,35 +522,43 @@ int main(int argc, const char *argv[])
 
           default:
             PrintUsage();
-            return 1;
+            return -1;
         }
       }
       else
       {
-        PrintUsage();
-        return 1;
+        word += argv[i];
+        word += " ";
       }
       i++;
     }
   }
 
-  OutputPreamble();
-  ReadDictionaryFile("dict.txt", &t, root_node);
+  // This rtrims the word
+  word.erase(std::find_if(word.rbegin(), word.rend(), [](int c) {
+        return !std::isspace(c);
+    }).base(), word.end());
 
-  // Print out the top portion of the tree
-  if (LOG_DEBUG <= GET_LOG_VERBOSITY())
-    PrintTraversal(root_node, LEG_C, 0, 0);
-
-  while (1) {
-    PrintPrompt();
-    string input_phrase;
-    getline(cin, input_phrase);
-    input_phrase = CleanString(input_phrase);  // Eliminate spaces and other undesireables
-
-    // We will now extrapolate our anagrams from the cleaned input.
-    map< int, string > anagrams;
-    t.SetMaxDifference(0);
-    GetAnagrams(t, root_node, input_phrase.c_str(), anagrams);
+  if (!word.length()) {
+    PrintUsage();
+    return -1;
   }
+
+  // This reads the dictionary file and gathers all the anagrams
+  // from our source word.
+  ReadDictionaryFile("dict_no_abbreviations.txt", &t, root_node);
+  map< string, int > anagrams;
+  t.SetMaxDifference(0);
+  GetAnagrams(t, root_node, word.c_str(), anagrams);
+
+  // Iterates through all the findings and spit them out to stdout.
+  cout << "ANAGRAMS:" << endl;
+  int count = 0;
+  for (auto i : anagrams) {
+    cout << i.first << endl;
+    ++count;
+  }
+  cout << count << " ANAGRAMS FOUND." << endl;
+
   return 0;
 }
