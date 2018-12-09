@@ -38,6 +38,21 @@
 #include "ternary_tree.h"
 #include "anagram_log.h"
 
+// CleanString
+// Removes extraneous characters from string
+// Entry: string (in/out)
+// Exit: -
+std::string& CleanString(std::string& s) {
+    s.erase(remove_if(s.begin(), s.end(), [](const char& c) {
+        return c == ' ';
+    }), s.end());
+    return s;
+}
+
+// GetWordCount
+// Count the number of words in a file.  Assume one word per line.
+// Entry: ifstream
+// Exit: # of words in files
 int GetWordCount(std::ifstream *file)
 {
   int lineTot = std::count(std::istreambuf_iterator<char>(*file),
@@ -54,7 +69,11 @@ int GetWordCount(std::ifstream *file)
 //
 // @In:     -
 // @Out:    -
-void ReadDictionaryFile(const char *path, TernaryTree *pTree, TNode *& root_node)
+void ReadDictionaryFile(
+  const char *path,
+  TernaryTree *pTree,
+  TNode *& root_node
+)
 {
   try
   {
@@ -106,11 +125,12 @@ void ReadDictionaryFile(const char *path, TernaryTree *pTree, TNode *& root_node
 // @Out:    -
 void OutputPreamble()
 {
-  std::cout <<  "Dicto" << std::endl;
-  std::cout <<  "Copyright (C) 2015 Gregory P. Hedger" << std::endl;
-  std::cout << "This program comes with ABSOLUTELY NO WARRANTY." << std::endl;
-  std::cout << "This is free software, and you are welcome to redistribute it" << std::endl;
-  std::cout << "under certain conditions covered by GNU Public License v3.0." << std::endl;
+  using namespace std;
+  cout << "Anagram" << endl;
+  cout << "Copyright (C) 2019 Gregory P. Hedger" << endl;
+  cout << "This program comes with ABSOLUTELY NO WARRANTY." << endl;
+  cout << "This is free software, and you are welcome to redistribute it" << endl;
+  cout << "under certain conditions covered by GNU Public License v3.0." << endl;
 }
 
 
@@ -169,12 +189,11 @@ void PrintTraversal(TNode *pNode, LEG leg, int htab, int depth = 0)
   if (!depth) {
     printf("\n");
     memset(_renderBuf, ' ', sizeof(_renderBuf) );
-    htab = screenWidth >> 1;        // set initial htab to center of rendering buffer
+    htab = screenWidth >> 1; // set initial htab to center of rendering buffer
   }
 
   if (depth > 3)
     return;
-
 
   // Caculate screen layout
   switch (leg) {
@@ -222,11 +241,10 @@ void PrintTraversal(TNode *pNode, LEG leg, int htab, int depth = 0)
         c = c ? c : ' ';
         putchar(c);
       }
-      printf("\n" );         // Print LF every screenWidth columns
+      printf("\n" ); // Keep it tabular: print LF every screenWidth columns
     }
   }
 }
-
 
 // GetCharCountMap
 // Returns a map of the # of letters.
@@ -235,13 +253,16 @@ void PrintTraversal(TNode *pNode, LEG leg, int htab, int depth = 0)
 //  's' -> 2
 //  'u' -> 1
 //  'y' -> 1
-// Entry: reference to map<UCHAR, size_t>
+// Entry: reference to map<char, size_t>
 //        const pointer to word
-void GetCharCountMap(std::map<UCHAR, size_t>& char_count, const UCHAR *word)
+void GetCharCountMap(std::map<char, size_t>& char_count, const char *word)
 {
-  const UCHAR *current_char = word;
+  const char *current_char = word;
+  // This counts the characters, ignoring spaces.
   for (auto i = 0; *current_char; ++i, ++current_char) {
-    // Dictionary messiness: if there was no previous count, add it.
+    if (' ' == *current_char)
+      continue;
+    // std::map<> messiness: if there was no previous count, add it.
     // Otherwise, increase the count of this character in the word.
     if (!char_count.count(*current_char)) {
       char_count[*current_char] = 1;
@@ -257,10 +278,10 @@ void GetCharCountMap(std::map<UCHAR, size_t>& char_count, const UCHAR *word)
 // Entry: first word
 //        second word
 // Exit: true == match
-bool MatchCharCounts(const UCHAR *word_a, const UCHAR *word_b)
+bool MatchCharCounts(const char *word_a, const char *word_b)
 {
   bool result = true;  // assume success
-  std::map< UCHAR, size_t > char_count_a, char_count_b;
+  std::map< char, size_t > char_count_a, char_count_b;
   GetCharCountMap(char_count_a, word_a);
   GetCharCountMap(char_count_b, word_b);
   for (auto i : char_count_a) {
@@ -272,14 +293,225 @@ bool MatchCharCounts(const UCHAR *word_a, const UCHAR *word_b)
   return result;
 }
 
+// IsSubset
+// Determines if a candidate permutation is a subset of a master word; if all
+// of the characters in the subset occur in the master, and no
+// one uniquei candidate word character exceeds the count for that character
+// in the master then the candidate is a subset of the master.
+// Entry: master word
+//        subset candidate word
+// Exit:  true == candidate word is a subset
+bool IsSubset(const char *master, const char *candidate)
+{
+  bool result = true; // assume success
+  std::map<char, size_t> master_count, candidate_count;
+  GetCharCountMap(master_count, master);
+  GetCharCountMap(candidate_count, candidate);
+  // Loop through the candidate and ensure that it contains
+  // no characters that are not also part of the master,
+  // and that of the common characters the candidate does not
+  // exceed the count for the master (i.e. candidate has the same or
+  // fewer letter "a"s than master)
+  for (auto i : candidate_count) {
+    if (!master_count.count(i.first)) { // checks if character is common
+      result = false;                   // It isn't; we're done; exit
+      break;
+    }
+    // Check master unique character count ensuring it meets/exceeds candidate
+    if (master_count[i.first] < i.second) {
+      result = false;
+      break;
+    }
+  }
+
+  if (result) {
+    result = true;
+  }
+
+  return result;
+}
+
+// AddAndCompare
+// Adds two candidates and compares them with the permutative lexical
+// value of the master, returning a ternary output.
+// Entry: master lexical count permutation
+//        word a lexical count permutation
+//        worb b lexical count permutation
+// Exit: -1 candidate_a + candidate_b lexically less than master
+//        0 candidate_a + candidate_b match master
+//       +1 candidate_a + candidate_b lexically greater than master
+int AddAndCompare(
+  std::map< char, size_t>& char_count_master,
+  std::map< char, size_t>& char_count_a,
+  std::map< char, size_t>& char_count_b
+)
+{
+  int result = 0;  // assume match
+  std::map< char, size_t > char_count_sum;
+  // This adds the lexical value of the two words together and stores result
+  // in char_count_sum.
+  for (auto i : char_count_a) {
+    if (!char_count_b.count(i.first)) {
+      char_count_sum[i.first] = i.second;
+    } else {
+      char_count_sum[i.first] = (i.second + (char_count_b[i.first]));
+    }
+  }
+
+  // This adds any character counts in b that aren't in a.
+  for (auto i : char_count_b) {
+    if (!char_count_sum.count(i.first)) {
+      char_count_sum[i.first] = i.second;
+    }
+  }
+
+  // Now that we have the lexical sum, we'll just check for subset
+  for (auto i : char_count_sum) {
+    // This checks if there is a character in the candidate that
+    // does not appear in the master; exit if so with +1 result.
+    if (!char_count_master.count(i.first)) {
+      result = 1;
+      break;
+    }
+    // This checks if a given character count in the candidate exceeds
+    // the count for the same character in the master; if so, exit with +1.
+    if (char_count_master[i.first] < i.second) {
+      result = 1;
+      break;
+    }
+
+    // This checks if a given character count in the candidate is less than
+    // the count for the same character in the master; if so, continue with -1.
+    if (char_count_master[i.first] > i.second) {
+      result = -1;
+    }
+  }
+
+  // In case it looks like a match, need to make sure that no
+  // master characters exist that don't also exist in the candidate...
+  // If any do, then the candidate is lexically less than the master, -1.
+  if (!result) {
+    for (auto i : char_count_master) {
+      if (!(char_count_sum.count(i.first))) {
+        result = -1;
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+
+// CombineSubsetsRecurse
+// Recurse into subsets, additively updating candidate count.
+// We have a candidate count passed in, and we will compare
+// against the other words to get the second candidate count.
+// until we reach a full combo.
+// Entry: word
+//        subset map
+//        output map
+//        candidate combo
+void CombineSubsetsRecurse(
+  const char *word,
+  std::map< std::string, int >& subset,
+  std::map< std::string, int >& output,
+  std::map<char, size_t>& master_count,
+  std::map<char, size_t>& candidate_count_a,
+  std::map<std::string, int>::const_iterator& start_i
+)
+{
+  using namespace std;
+  //cout << "**** " << word << endl;
+  map<char, size_t> candidate_count_b;
+  for (std::map<std::string, int>::const_iterator i = start_i; i != subset.end(); ++i) {
+    // Skip ourselves
+    if (!strcmp(i->first.c_str(), word))
+      continue;
+    candidate_count_b.clear();
+    GetCharCountMap(candidate_count_b, i->first.c_str());
+    // This checks to for a complete anagram assembled from partials. This is
+    // determined by a permutation equivalency.
+    // The addition will be saved in candidate_count_b.
+    int comparison_result = AddAndCompare(
+      master_count,
+      candidate_count_a,
+      candidate_count_b
+    );
+    if (!comparison_result) {
+      // This combination is a complete anagram; add it to the output,
+      // separating the partials by spaces.
+      string output_phrase = word;
+      output_phrase += " ";
+      output_phrase += i->first;
+      output[output_phrase] = 1;
+    } else if (comparison_result < 0) {
+      // The two candidates do not make a full anagram; Since the letter count
+      // permutation is still less than that of master, the two candidates
+      // combined still form a partial.  Below, we combine them in a space-
+      // delimited phrase and recurse.
+      string output_phrase = word;
+      output_phrase += " ";
+      output_phrase += i->first;
+      output_phrase += " ";
+
+      map<char, size_t> new_candidate_count;
+      GetCharCountMap(new_candidate_count, output_phrase.c_str());
+      CombineSubsetsRecurse(
+        output_phrase.c_str(),
+        subset,
+        output,
+        master_count,
+        new_candidate_count,
+        i
+      );
+    } else {
+      // The two candidates exceed the lexical permutative value of the
+      // master; this combination will not work so continue on...
+    }
+  }
+}
+
+// CombineSubsets
+// Given an input of a master word/phrase, find all combinations of partial words
+// to create complete anagrams.  Spaces in master word are ignored.
+// Entry: master word/phrase
+//        subset map of partials
+//        output map
+void CombineSubsets(
+  const char *word,
+  std::map< std::string, int >& subset,
+  std::map< std::string, int >& output
+)
+{
+  std::map<char, size_t> master_count, candidate_count;
+  GetCharCountMap(master_count, word);
+  std::map<std::string, int>::const_iterator i = subset.begin();
+  while (i != subset.end()) {
+    if (!strcmp(i->first.c_str(), word))
+      continue;
+    candidate_count.clear();
+    GetCharCountMap(candidate_count, i->first.c_str());
+    // Here we want to get a starting point for our character count
+    // for the candidate, and compare it against the others.
+    CombineSubsetsRecurse(
+      i->first.c_str(),
+      subset, output,
+      master_count,
+      candidate_count,
+      i
+    );
+    ++i;
+  }
+}
+
 // GetAnagrams
 // Entry: pointer to ternary_tree
 //        word to check for anagrams
 void GetAnagrams(
   TernaryTree& t,
   TNode *root_node,
-  std::map< int, std::string >& anagrams,
-  const UCHAR *word
+  const char *word,
+  std::map< int, std::string >& anagrams
 )
 {
   using namespace std;
@@ -289,9 +521,16 @@ void GetAnagrams(
   size_t word_len = strlen((const char *)word);
 
   map< string, int > output;
+  map< string, int > subset;
   map< int, string > extrapolation;
+
+  // Step 1: At the end of this process we will have a list of
+  // A) complete set of one-word complete anagrams, for example:
+  //  "live" -> "evil", "levi", "veil", "vile";
+  // B) full words representing potential parts of anagrams.
+  VERBOSE_LOG(LOG_DEBUG, "Step 1: Garner full-word anagrams and partials..." << endl);
   for (size_t i = 0; i <= word_len; i++) {
-    UCHAR c[2] = {0,0};
+    char c[2] = {0,0};
     *c = word[i];
     extrapolation.clear();
     t.FuzzyFind((const char *)c, root_node, &extrapolation);
@@ -299,29 +538,53 @@ void GetAnagrams(
     // Now we'll check the lengths of each word and compare it to our input
     // For the few that match, we'll check and see if they have the same
     // characters.
-    // TODO: This is horribly inefficient brute force approach; optimize!
+    // TODO: It's likely possible to optimize what follows.
+    // Probably should look at using a binary heap or other data structure.
     size_t candidate_len = 0;
     for (auto it : extrapolation) {
-      const UCHAR *candidate = (const UCHAR *)it.second.c_str();
-      // Does length match?
-      if ((candidate_len = strlen((const char *)candidate)) == word_len) {
+      const char *candidate = it.second.c_str();
+      // This checkes for a length and character count match; if found
+      // then the word is an anagram so we add it to our output collection.
+      if ((candidate_len = strlen(candidate)) == word_len) {
         // Does word match against character count?
         if (MatchCharCounts(candidate, word)) {
-          if (!output.count((const char *)candidate)) {
-            output[(const char *)candidate] = 1;
+          if (!output.count(candidate)) {
+            output[candidate] = 1;
           }
         }
       } else {
-        // TODO: Add partial word matches here
+        // TODO: Add partial word matches here:
+        // If the word is smaller than the input AND all of the smaller word's
+        // characters appear in the input (i.e. an unordered subset), then we
+        // then we have a candidate for a partial match provided other word(s)
+        // can fill in the missing characters exactly.
+        if (IsSubset(word, candidate)) {
+          subset[candidate] = 1;    //
+        }
       }
     }
   }
 
   // Iterates through all the findings and spit them out
+  /*
+  cout << "PARTIALS:" << endl;
+  for (auto i : subset ) {
+    cout << i.first << endl;
+  }
+  */
+  VERBOSE_LOG(LOG_DEBUG, "Step 2: Combine partials..." << endl);
+
+  // Step 2: Now we have a complete set of subsets; we must now combine them to
+  // obtain combinations matching the input word character count permutation.
+  CombineSubsets(word, subset, output);
+
+  // Iterates through all the findings and spit them out
+  cout << "ANAGRAMS:" << endl;
   for (auto i : output) {
     cout << i.first << endl;
   }
 }
+
 
 // main
 // This is the main entry point and testbed for ternary tree.
@@ -330,7 +593,7 @@ void GetAnagrams(
 // @Out:    0 == success
 int main(int argc, const char *argv[])
 {
-  const int kMaxIn = 128;
+  using namespace std;
   TNode *root_node = NULL;
   TernaryTree t;
 
@@ -340,8 +603,7 @@ int main(int argc, const char *argv[])
     while (i < argc) {
       if ('-' == argv[i][0]) {
         switch(argv[i][1]) {
-          case 'v':
-            {
+          case 'v': {
               int verbosity;
               if (isdigit(verbosity = argv[i][2])) {
                 LOG_LEVEL ll = (LOG_LEVEL) (verbosity - (int) '0');
@@ -349,12 +611,11 @@ int main(int argc, const char *argv[])
               }
             }
             break;
-          case 'd':
-            {
+          case 'd': {
               unsigned int diff;
               sscanf(&argv[i][2], "%d", &diff);
               if (diff > 0 && diff < (unsigned int) ~0) {
-                std::cout << diff << std::endl;
+                cout << diff << endl;
                 t.SetMaxDifference( (int) diff);
               }
             }
@@ -370,7 +631,6 @@ int main(int argc, const char *argv[])
         PrintUsage();
         return 1;
       }
-
       i++;
     }
   }
@@ -382,17 +642,16 @@ int main(int argc, const char *argv[])
   if (LOG_DEBUG <= GET_LOG_VERBOSITY())
     PrintTraversal(root_node, LEG_C, 0, 0);
 
-  UCHAR in[ kMaxIn ];
   while (1) {
     PrintPrompt();
-    std::cin >> in;
+    string input_phrase;
+    getline(cin, input_phrase);
+    input_phrase = CleanString(input_phrase);  // Eliminate spaces and other undesireables
 
-    // Extrapolate words from a prefix
-    const UCHAR *prefix = in;
-
-    std::map< int, std::string > anagrams;
+    // We will now extrapolate our anagrams from the cleaned input.
+    map< int, string > anagrams;
     t.SetMaxDifference(0);
-    GetAnagrams(t, root_node, anagrams, prefix);
+    GetAnagrams(t, root_node, input_phrase.c_str(), anagrams);
   }
   return 0;
 }

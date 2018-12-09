@@ -20,9 +20,9 @@ OBJEXT      := o
 #CFLAGS      := -std=c++11 -Wall -O0 -g -pg -ggdb -ansi -c
 #LFLAGS      := -pg
 #DEBUGGING
-CFLAGS      := -std=c++11 -g -Wall -O0 -ggdb -c -finstrument-functions
+#CFLAGS      := -std=c++11 -g -Wall -O0 -ggdb -c -finstrument-functions
 #OPTIMIZED
-#CFLAGS      := -std=c++11 -g -Wall -O3 -c
+CFLAGS      := -std=c++11 -g -Wall -O3 -c
 
 LIB 				:=
 INC         := -I$(INCDIR) -I/usr/local/include

@@ -54,18 +54,18 @@ typedef unsigned char UCHAR;
 TNode * TernaryTree::Insert(const char *word, TNode **ppNode)
 {
   TNode * pChild = NULL;
-  VERBOSE_LOG(LOG_DEBUG, "Insert >>>>>" << std::endl);
+  //VERBOSE_LOG(LOG_DEBUG, "Insert >>>>>" << std::endl);
   if (!(*ppNode)) {
     *ppNode = AllocNode(*word);
-    VERBOSE_LOG(LOG_DEBUG, "ALLOC" << std::endl);
+    //VERBOSE_LOG(LOG_DEBUG, "ALLOC" << std::endl);
   }
   if (tolower(*word) < ((*ppNode)->GetKey())) {
-    VERBOSE_LOG(LOG_DEBUG,  "L: " << word);
+    //VERBOSE_LOG(LOG_DEBUG,  "L: " << word);
     Insert(word, &((*ppNode)->l_));
     (*ppNode)->GetLeft()->SetParent((*ppNode)->GetParent());
   }
   else if (tolower(*word) > (*ppNode)->GetKey()) {
-    VERBOSE_LOG(LOG_DEBUG,  "R: " << word << std::endl);
+    //VERBOSE_LOG(LOG_DEBUG,  "R: " << word << std::endl);
     // Add a peer on the right
     Insert(word, &((*ppNode)->r_));
     (*ppNode)->GetRight()->SetParent((*ppNode)->GetParent());
@@ -73,20 +73,20 @@ TNode * TernaryTree::Insert(const char *word, TNode **ppNode)
     // Is this the last letter (is there a char in the second position?)
     if (word[ 1 ])
     {
-      VERBOSE_LOG(LOG_DEBUG,  "C: " << word << std::endl);
+      //VERBOSE_LOG(LOG_DEBUG,  "C: " << word << std::endl);
       pChild = Insert(word + 1, &((*ppNode)->c_));
       pChild->SetParent(*ppNode);
     }
     else
     {
-      // Yep, last one...
-      VERBOSE_LOG(LOG_DEBUG,  "T: " << word << std::endl);
+      // Yep, last letter, so we will set the terminator flag...
+      //VERBOSE_LOG(LOG_DEBUG,  "T: " << word << std::endl);
       (*ppNode)->SetTerminator();
     }
   }
 
 
-  VERBOSE_LOG(LOG_DEBUG,  "Insert <<<<<" << std::endl);
+  //VERBOSE_LOG(LOG_DEBUG,  "Insert <<<<<" << std::endl);
   /*
   VERBOSE_LOG(LOG_DEBUG,  "" << std::endl);
   VERBOSE_LOG(LOG_DEBUG,  " K: " << (*ppNode)->GetKey());
