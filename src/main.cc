@@ -148,9 +148,9 @@ void PrintUsage()
 //  's' -> 2
 //  'u' -> 1
 //  'y' -> 1
-// Entry: reference to map<char, size_t>
+// Entry: reference to map
 //        const pointer to word
-void GetCharCountMap(std::map<char, size_t>& char_count, const char *word)
+void GetCharCountMap(std::map< char, size_t>& char_count, const char *word)
 {
   const char *current_char = word;
   // This counts the characters, ignoring spaces.
@@ -200,7 +200,7 @@ bool MatchCharCounts(const char *word_a, const char *word_b)
 bool IsSubset(const char *master, const char *candidate)
 {
   bool result = true; // assume success
-  std::map<char, size_t> master_count, candidate_count;
+  std::map< char, size_t> master_count, candidate_count;
   GetCharCountMap(master_count, master);
   GetCharCountMap(candidate_count, candidate);
   // Loop through the candidate and ensure that it contains
@@ -243,21 +243,21 @@ int AddAndCompare(
 )
 {
   int result = 0;  // assume match
+  //int char_count_sum[256];
+  //memset((void *)char_count_sum, 0, sizeof(char_count_sum));
   std::map< char, size_t > char_count_sum;
   // This adds the lexical value of the two words together and stores result
   // in char_count_sum.
   for (auto i : char_count_a) {
-    if (!char_count_b.count(i.first)) {
-      char_count_sum[i.first] = i.second;
-    } else {
-      char_count_sum[i.first] = (i.second + (char_count_b[i.first]));
-    }
+    char_count_sum[i.first] = i.second;
   }
 
   // This adds any character counts in b that aren't in a.
   for (auto i : char_count_b) {
-    if (!char_count_sum.count(i.first)) {
+    if (char_count_sum.end() == char_count_sum.find(i.first)) {
       char_count_sum[i.first] = i.second;
+    } else {
+      char_count_sum[i.first] += i.second;
     }
   }
 
@@ -265,7 +265,7 @@ int AddAndCompare(
   for (auto i : char_count_sum) {
     // This checks if there is a character in the candidate that
     // does not appear in the master; exit if so with +1 result.
-    if (!char_count_master.count(i.first)) {
+    if (char_count_master.end() == char_count_master.find(i.first)) {
       result = 1;
       break;
     }
@@ -288,7 +288,7 @@ int AddAndCompare(
   // If any do, then the candidate is lexically less than the master, -1.
   if (!result) {
     for (auto i : char_count_master) {
-      if (!(char_count_sum.count(i.first))) {
+      if (char_count_sum.end() == char_count_sum.find(i.first)) {
         result = -1;
         break;
       }
@@ -311,14 +311,14 @@ void CombineSubsetsRecurse(
   const char *word,
   std::map< std::string, int >& subset,
   std::map< std::string, int >& output,
-  std::map<char, size_t>& master_count,
-  std::map<char, size_t>& candidate_count_a,
+  std::map< char, size_t>& master_count,
+  std::map< char, size_t>& candidate_count_a,
   std::map<std::string, int>::const_iterator& start_i
 )
 {
   using namespace std;
   //cout << "**** " << word << endl;
-  map<char, size_t> candidate_count_b;
+  map< char, size_t> candidate_count_b;
   for (std::map<std::string, int>::const_iterator i = start_i; i != subset.end(); ++i) {
     // Skip ourselves
     // Note: Expensive and unnecessary since we use a map<>
@@ -351,7 +351,7 @@ void CombineSubsetsRecurse(
       output_phrase += " ";
       output_phrase += i->first;
 
-      map<char, size_t> new_candidate_count;
+      map< char, size_t> new_candidate_count;
       GetCharCountMap(new_candidate_count, output_phrase.c_str());
       CombineSubsetsRecurse(
         output_phrase.c_str(),
@@ -380,7 +380,7 @@ void CombineSubsets(
   std::map< std::string, int >& output
 )
 {
-  std::map<char, size_t> master_count, candidate_count;
+  std::map< char, size_t> master_count, candidate_count;
   GetCharCountMap(master_count, word);
   std::map<std::string, int>::const_iterator i = subset.begin();
   while (i != subset.end()) {
