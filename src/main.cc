@@ -21,19 +21,15 @@
  * SOFTWARE.
  */
 
-#include <iostream>
 #include <stdio.h>
 #include <assert.h>
 #include <memory.h>
+#include <iostream>
 #include <fstream>
 #include <string>
-#include <set>
 #include <map>
-#include <vector>
-#include <stack>
-#include <queue>
-#include <deque>
 #include <algorithm>
+
 #include "templ_node.h"
 #include "ternary_tree.h"
 #include "anagram_log.h"
