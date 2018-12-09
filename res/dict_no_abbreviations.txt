@@ -475,8 +475,6 @@ Aquila
 Aquinas
 Aquino
 Aquitaine
-Ar
-Ara
 Arab
 Arabia
 Arabian
@@ -7403,7 +7401,6 @@ Quixotism
 Qumran
 Quonset
 RCA
-Ra
 Rabat
 Rabelais
 Rabelaisian
@@ -54831,7 +54828,6 @@ razz
 razzed
 razzes
 razzing
-re
 reach
 reachable
 reached

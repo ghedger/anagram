@@ -27,7 +27,8 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <map>
+#include <unordered_map>
+#include <unordered_map>
 #include <algorithm>
 
 #include "templ_node.h"
@@ -142,22 +143,22 @@ void PrintUsage()
 }
 
 // GetCharCountMap
-// Returns a map of the # of letters.
+// Returns a unordered_map of the # of letters.
 // Example: "fussy" will return
 //  'f' -> 1
 //  's' -> 2
 //  'u' -> 1
 //  'y' -> 1
-// Entry: reference to map
+// Entry: reference to unordered_map
 //        const pointer to word
-void GetCharCountMap(std::map< char, size_t>& char_count, const char *word)
+void GetCharCountMap(std::unordered_map< char, size_t>& char_count, const char *word)
 {
   const char *current_char = word;
   // This counts the characters, ignoring spaces.
   for (auto i = 0; *current_char; ++i, ++current_char) {
     if (' ' == *current_char)
       continue;
-    // std::map<> messiness: if there was no previous count, add it.
+    // std::unordered_map<> messiness: if there was no previous count, add it.
     // Otherwise, increase the count of this character in the word.
     if (!char_count.count(*current_char)) {
       char_count[*current_char] = 1;
@@ -176,7 +177,7 @@ void GetCharCountMap(std::map< char, size_t>& char_count, const char *word)
 bool MatchCharCounts(const char *word_a, const char *word_b)
 {
   bool result = true;  // assume success
-  std::map< char, size_t > char_count_a, char_count_b;
+  std::unordered_map< char, size_t > char_count_a, char_count_b;
   GetCharCountMap(char_count_a, word_a);
   GetCharCountMap(char_count_b, word_b);
   for (auto i : char_count_a) {
@@ -200,7 +201,7 @@ bool MatchCharCounts(const char *word_a, const char *word_b)
 bool IsSubset(const char *master, const char *candidate)
 {
   bool result = true; // assume success
-  std::map< char, size_t> master_count, candidate_count;
+  std::unordered_map< char, size_t> master_count, candidate_count;
   GetCharCountMap(master_count, master);
   GetCharCountMap(candidate_count, candidate);
   // Loop through the candidate and ensure that it contains
@@ -237,32 +238,24 @@ bool IsSubset(const char *master, const char *candidate)
 //        0 candidate_a + candidate_b match master
 //       +1 candidate_a + candidate_b lexically greater than master
 int AddAndCompare(
-  std::map< char, size_t>& char_count_master,
-  std::map< char, size_t>& char_count_a,
-  std::map< char, size_t>& char_count_b
+  std::unordered_map< char, size_t>& char_count_master,
+  std::unordered_map< char, size_t>& char_count_a,
+  std::unordered_map< char, size_t>& char_count_b
 )
 {
   int result = 0;  // assume match
-  //int char_count_sum[256];
-  //memset((void *)char_count_sum, 0, sizeof(char_count_sum));
-  std::map< char, size_t > char_count_sum;
-  // This adds the lexical value of the two words together and stores result
-  // in char_count_sum.
-  for (auto i : char_count_a) {
-    char_count_sum[i.first] = i.second;
-  }
 
-  // This adds any character counts in b that aren't in a.
-  for (auto i : char_count_b) {
-    if (char_count_sum.end() == char_count_sum.find(i.first)) {
-      char_count_sum[i.first] = i.second;
+  // Add a to b, and store in b
+  for (auto i : char_count_a) {   // place a counts in sum
+    if (char_count_b.end() == char_count_b.find(i.first)) {
+      char_count_b[i.first] = i.second;
     } else {
-      char_count_sum[i.first] += i.second;
+      char_count_b[i.first] += i.second;
     }
   }
 
   // Now that we have the lexical sum, we'll just check for subset
-  for (auto i : char_count_sum) {
+  for (auto i : char_count_b) {
     // This checks if there is a character in the candidate that
     // does not appear in the master; exit if so with +1 result.
     if (char_count_master.end() == char_count_master.find(i.first)) {
@@ -288,7 +281,7 @@ int AddAndCompare(
   // If any do, then the candidate is lexically less than the master, -1.
   if (!result) {
     for (auto i : char_count_master) {
-      if (char_count_sum.end() == char_count_sum.find(i.first)) {
+      if (char_count_b.end() == char_count_b.find(i.first)) {
         result = -1;
         break;
       }
@@ -304,24 +297,25 @@ int AddAndCompare(
 // against the other words to get the second candidate count.
 // until we reach a full combo.
 // Entry: word
-//        subset map
-//        output map
+//        subset unordered_map
+//        output unordered_map
 //        candidate combo
 void CombineSubsetsRecurse(
   const char *word,
-  std::map< std::string, int >& subset,
-  std::map< std::string, int >& output,
-  std::map< char, size_t>& master_count,
-  std::map< char, size_t>& candidate_count_a,
-  std::map<std::string, int>::const_iterator& start_i
+  std::unordered_map< std::string, int >& subset,
+  std::unordered_map< std::string, int >& output,
+  std::unordered_map< char, size_t>& master_count,
+  std::unordered_map< char, size_t>& candidate_count_a,
+  std::unordered_map<std::string, int>::const_iterator& start_i
 )
 {
   using namespace std;
   //cout << "**** " << word << endl;
-  map< char, size_t> candidate_count_b;
-  for (std::map<std::string, int>::const_iterator i = start_i; i != subset.end(); ++i) {
+  unordered_map< char, size_t> candidate_count_b;
+  candidate_count_b.reserve(26);
+  for (std::unordered_map<std::string, int>::const_iterator i = start_i; i != subset.end(); ++i) {
     // Skip ourselves
-    // Note: Expensive and unnecessary since we use a map<>
+    // Note: Expensive and unnecessary since we use a unordered_map<>
     // Overwrite is cheaper than this check each time
     //if (!strcmp(i->first.c_str(), word))
     //  continue;
@@ -351,7 +345,7 @@ void CombineSubsetsRecurse(
       output_phrase += " ";
       output_phrase += i->first;
 
-      map< char, size_t> new_candidate_count;
+      unordered_map< char, size_t> new_candidate_count;
       GetCharCountMap(new_candidate_count, output_phrase.c_str());
       CombineSubsetsRecurse(
         output_phrase.c_str(),
@@ -372,17 +366,17 @@ void CombineSubsetsRecurse(
 // Given an input of a master word/phrase, find all combinations of partial words
 // to create complete anagrams.  Spaces in master word are ignored.
 // Entry: master word/phrase
-//        subset map of partials
-//        output map
+//        subset unordered_map of partials
+//        output unordered_map
 void CombineSubsets(
   const char *word,
-  std::map< std::string, int >& subset,
-  std::map< std::string, int >& output
+  std::unordered_map< std::string, int >& subset,
+  std::unordered_map< std::string, int >& output
 )
 {
-  std::map< char, size_t> master_count, candidate_count;
+  std::unordered_map< char, size_t> master_count, candidate_count;
   GetCharCountMap(master_count, word);
-  std::map<std::string, int>::const_iterator i = subset.begin();
+  std::unordered_map<std::string, int>::const_iterator i = subset.begin();
   while (i != subset.end()) {
     //if (!strcmp(i->first.c_str(), word))
     //  continue;
@@ -408,7 +402,7 @@ void GetAnagrams(
   TernaryTree& t,
   TNode *root_node,
   const char *word,
-  std::map< std::string, int >& anagrams
+  std::unordered_map< std::string, int >& anagrams
 )
 {
   using namespace std;
@@ -417,7 +411,7 @@ void GetAnagrams(
   // have too many.
   size_t word_len = strlen((const char *)word);
 
-  map< string, int > subset;
+  unordered_map< string, int > subset;
   map< int, string > extrapolation;
 
   // Step 1: At the end of this process we will have a list of
@@ -543,7 +537,7 @@ int main(int argc, const char *argv[])
   // This reads the dictionary file and gathers all the anagrams
   // from our source word.
   ReadDictionaryFile("dict_no_abbreviations.txt", &t, root_node);
-  map< string, int > anagrams;
+  unordered_map< string, int > anagrams;
   t.SetMaxDifference(0);
   GetAnagrams(t, root_node, word.c_str(), anagrams);
 
