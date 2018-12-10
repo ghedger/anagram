@@ -32,8 +32,8 @@
 #include <fstream>
 #include <string>
 #include <map>
-#include <map>
 #include <algorithm>
+#include <thread>
 
 #include "anagram_common.h"
 #include "anagram_flags.h"
@@ -42,7 +42,9 @@
 #include "anagram_log.h"
 #include "occupancy_hash.h"
 #include "anagram_lock.h"
+#include "output_queue.h"
 
+namespace anagram {
 // CleanString
 // Removes extraneous characters from string
 // Entry: string (in/out)
@@ -169,14 +171,6 @@ void PrintUsage()
   cout << "\t\t-v3 debug" << endl;
 }
 
-// PrintAnagram
-// Common entry point to print an anagram to stdout
-// Entry: anagram string
-void PrintAnagram(const char *anagram)
-{
-  VERBOSE_LOG(LOG_NONE, anagram << std::endl);
-}
-
 // GetCharCountMap
 // Returns a map of the # of letters.
 // Example: "fussy" will return
@@ -186,6 +180,7 @@ void PrintAnagram(const char *anagram)
 //  'y' -> 1
 // Entry: reference to map
 //        const pointer to word
+// DEPRECATED
 void GetCharCountMap(std::map< char, size_t>& char_count, const char *word)
 {
   const char *current_char = word;
@@ -209,6 +204,7 @@ void GetCharCountMap(std::map< char, size_t>& char_count, const char *word)
 // Entry: first word
 //        second word
 // Exit: true == match
+// DEPRECATED
 bool MatchCharCounts(const char *word_a, const char *word_b)
 {
   bool result = true;  // assume success
@@ -233,6 +229,7 @@ bool MatchCharCounts(const char *word_a, const char *word_b)
 // Entry: master word
 //        subset candidate word
 // Exit:  true == candidate word is a subset
+// DEPRECATED
 bool IsSubset(const char *master, const char *candidate)
 {
   bool result = true; // assume success
@@ -272,6 +269,7 @@ bool IsSubset(const char *master, const char *candidate)
 // Exit: -1 candidate_a + candidate_b lexically less than master
 //        0 candidate_a + candidate_b match master
 //       +1 candidate_a + candidate_b lexically greater than master
+// DEPRECATED
 int AddAndCompare(
   std::map< char, size_t>& char_count_master,
   std::map< char, size_t>& char_count_a,
@@ -332,10 +330,11 @@ int AddAndCompare(
 //
 static char chars_completed[256];
 static size_t cpu_tot;
-static anagram::Lock chars_completed_lock;
+static anagram::Lock output_lock;
 static anagram::Lock subset_lock;
 static anagram::Lock gather_lock;
 
+#if 0
 // CombineSubsetsRecurse
 // Recurse into subsets, additively updating candidate count.
 // We have a candidate count passed in, and we will compare
@@ -345,6 +344,7 @@ static anagram::Lock gather_lock;
 //        subset map
 //        output map
 //        candidate combo
+// DEPRECATED
 void CombineSubsetsRecurse(
   const char *word,
   std::map< std::string, int >& subset,
@@ -383,7 +383,8 @@ void CombineSubsetsRecurse(
         PrintAnagram(output_phrase.c_str());
       else {
         output[output_phrase] = 1;
-        VERBOSE_LOG(LOG_NORMAL, "\r" << "Anagrams found: " << output.size() << "\r");
+        VERBOSE_LOG(LOG_NORMAL, "\r" << "Anagrams found: " << output.size()
+          << "                              " << "\r");
       }
     } else if (comparison_result < 0) {
       // The two candidates do not make a full anagram; Since the letter count
@@ -418,6 +419,7 @@ void CombineSubsetsRecurse(
 // Entry: master word/phrase
 //        subset map of partials
 //        output map
+// DEPRECATED
 void CombineSubsets(
   const char *word,
   std::map< std::string, int >& subset,
@@ -446,7 +448,24 @@ void CombineSubsets(
     ++i;
   }
 }
+#endif
 
+// PrintAnagram
+// Prints anagram followed by an endline
+// Entry: anagram
+void PrintAnagram(const char *anagram)
+{
+  output_lock.Acquire();
+  //setlinebuf(stdout);
+  //setbuf(stdout, NULL);
+  std::cout << anagram << std::endl;
+  std::flush(std::cout);
+  output_lock.Release();
+}
+
+// This is to ensure the output queue is not overloaded
+const int kOutputQueueThrottleFrequency = 100;
+static int output_queue_throttle = kOutputQueueThrottleFrequency;
 
 // CombineSubsetsRecurseFast
 // Recurse into subsets, additively updating candidate count.
@@ -464,7 +483,8 @@ void CombineSubsetsRecurseFast(
   OccupancyHash& master_count,
   OccupancyHash& candidate_count_a,
   std::map<std::string, int>::const_iterator& start_i,
-  AnagramFlags flags
+  AnagramFlags flags,
+  OutputQueue *queue
 )
 {
   using namespace std;
@@ -478,8 +498,8 @@ void CombineSubsetsRecurseFast(
     candidate_count_b.GetCharCountMap(i->first.c_str());
 
     // This checks to for a complete anagram assembled from partials. This is
-    // determined by a permutation equivalency.
-    // The addition will be saved in candidate_count_b.
+    // determined by a lexically-equivalent permutation (same character
+    // counts in different permutation).  Sum stored in candidate_count_b.
     candidate_count_b += candidate_count_a;
     int comparison_result = candidate_count_b.Compare(master_count);
 
@@ -489,13 +509,22 @@ void CombineSubsetsRecurseFast(
       string output_phrase = word;
       output_phrase += " ";
       output_phrase += i->first;
-      if (flags.output_directly)
-        PrintAnagram(output_phrase.c_str());
-      else {
-        chars_completed_lock.Acquire();
+      if (flags.output_directly) {
+        output_phrase = output_phrase + "\n";
+        queue->Push(output_phrase.c_str());
+      } else {
+        subset_lock.Acquire();
         output[output_phrase] = 1;
-        VERBOSE_LOG(LOG_NORMAL, "\r" << "Anagrams found: " << output.size() << "\r");
-        chars_completed_lock.Release();
+        subset_lock.Release();
+
+        if (!--output_queue_throttle) {
+          output_queue_throttle = kOutputQueueThrottleFrequency;
+          output_lock.Acquire();
+          static char out[256];
+          sprintf(out, "\rAnagrams found: %ld    ", output.size());
+          queue->Push(out);
+          output_lock.Release();
+        }
       }
     } else if (comparison_result < 0) {
       // The two candidates do not make a full anagram; Since the letter count
@@ -505,7 +534,6 @@ void CombineSubsetsRecurseFast(
       string output_phrase = word;
       output_phrase += " ";
       output_phrase += i->first;
-
       OccupancyHash new_candidate_count;
       new_candidate_count.GetCharCountMap(output_phrase.c_str());
       CombineSubsetsRecurseFast(
@@ -515,7 +543,8 @@ void CombineSubsetsRecurseFast(
         master_count,
         new_candidate_count,
         i,
-        flags
+        flags,
+        queue
       );
     } else {
       // The two candidates exceed the lexical permutative value of the
@@ -535,7 +564,8 @@ void CombineSubsetsFast(
   std::map< std::string, int >& subset,
   std::map< std::string, int >& output,
   AnagramFlags flags,
-  int thread_index
+  int thread_index,
+  OutputQueue *queue
 )
 {
   OccupancyHash master_count, candidate_count;
@@ -564,8 +594,9 @@ void CombineSubsetsFast(
         master_count,
         candidate_count,
         i,
-        flags
-        );
+        flags,
+        queue
+    );
     // Increment by cpu count to preserve the task interleaving
     for (size_t inc = 0; inc < cpu_tot; inc++) {
       if( i != subset.end())
@@ -573,7 +604,6 @@ void CombineSubsetsFast(
     }
   }
 }
-
 
 // GetAnagrams
 // Entry: pointer to ternary_tree
@@ -585,7 +615,8 @@ void GetAnagrams(
   std::map< std::string, int >& anagrams,
   std::map< std::string, int >& subset,
   AnagramFlags flags,
-  int thread_index
+  int thread_index,
+  OutputQueue *queue
 )
 {
   using namespace std;
@@ -608,17 +639,13 @@ void GetAnagrams(
       char c[2] = {0,0};
       *c = word[i];
 
-      chars_completed_lock.Acquire();
       if(chars_completed[(size_t)c[0]]) {  // don't repeat letters already done
-        chars_completed_lock.Release();
         continue;
       }
       chars_completed[(size_t)c[0]] = 1;
 
       extrapolation.clear();
       t.FuzzyFind((const char *)c, root_node, &extrapolation);
-
-      chars_completed_lock.Release();
 
       // Now we'll check the lengths of each word and compare it to our input
       // For the few that match, we'll check and see if they have the same
@@ -634,13 +661,15 @@ void GetAnagrams(
           // Does word match against character count?
           if (MatchCharCounts(candidate, word)) {
             if (!anagrams.count(candidate)) {
-              if (flags.output_directly)
-                PrintAnagram(candidate);
-              else {
-                chars_completed_lock.Acquire();
+              if (flags.output_directly) {
+                string out = candidate;
+                out += "\n";
+                queue->Push(out.c_str());
+              } else {
                 anagrams[candidate] = 1;
-                chars_completed_lock.Release();
-                VERBOSE_LOG(LOG_NORMAL, "\r" << "Anagrams found: " << anagrams.size() << "\r");
+                static char out[256];
+                sprintf(out, "\rAnagrams found: %ld    ", anagrams.size());
+                queue->Push(out);
               }
             }
           }
@@ -651,9 +680,7 @@ void GetAnagrams(
           // then we have a candidate for a partial match provided other word(s)
           // can fill in the missing characters exactly.
           if (IsSubset(word, candidate)) {
-            subset_lock.Acquire();
             subset[candidate] = 1;    // mark word as a partial
-            subset_lock.Release();
           }
         }
       }
@@ -672,9 +699,9 @@ void GetAnagrams(
   // Step 2: Now we have a complete set of subsets; we must now combine them to
   // obtain combinations matching the input word character count permutation.
   if (flags.tree_engine) {
-    CombineSubsets(word, subset, anagrams, flags);
+    //CombineSubsets(word, subset, anagrams, flags);
   } else {
-    CombineSubsetsFast(word, subset, anagrams, flags, thread_index);
+    CombineSubsetsFast(word, subset, anagrams, flags, thread_index, queue);
   }
 }
 
@@ -682,8 +709,12 @@ void GetAnagrams(
 // Threading
 //
 
+// Global count of active threads.  Each thread decrements this on completion.
 static volatile int thread_total = 0;
 
+// AnagramWorkerParams
+// Structure for paramters to be passed to worker threads.
+// TODO: Move this to an appropriate header.
 struct AnagramWorkerParams {
   TernaryTree *trie;
   TNode *root_node;
@@ -692,13 +723,12 @@ struct AnagramWorkerParams {
   std::map< std::string, int > *subset;
   AnagramFlags flags;
   int thread_index;
+  OutputQueue *queue;
 };
 
 // Worker
-// This Worker thread process simply acquires and releases the lock repeatedly
-// with the expectation other homogenous threads are doing likewise, for
-// lock testing purposes.
-// Entry: params
+// This is the top-level entry for job concurrent job processing.
+// Entry: AnagramWorkParams
 // Exit: (ignored)
 void *Worker(void *worker_params)
 {
@@ -711,7 +741,8 @@ void *Worker(void *worker_params)
     *params->anagrams,
     *params->subset,
     params->flags,
-    params->thread_index
+    params->thread_index,
+    params->queue
   );
 
   --thread_total;
@@ -720,15 +751,18 @@ void *Worker(void *worker_params)
 
 // initThreads
 //
-void StartThreads(const int thread_tot, AnagramWorkerParams *params)
+void RunJob(const int thread_tot, AnagramWorkerParams *params)
 {
+  // Our one and only output queue runs on its own thread
+  OutputQueue queue;
+
   // Clean the common chars_completed array shared by
   // all the threads.
   memset(chars_completed, 0, sizeof(chars_completed));
 
-  cpu_tot = thread_tot;
+  cpu_tot = thread_tot; // assume 1-to-1 correlation between threads and cpus
 
-  // Allocate thread pointers
+  // Allocate thread parameter blocks
   AnagramWorkerParams *thread_params =
     (AnagramWorkerParams *) malloc(sizeof(AnagramWorkerParams) * thread_tot);
   if (thread_params) {
@@ -744,7 +778,6 @@ void StartThreads(const int thread_tot, AnagramWorkerParams *params)
     return;
   }
 
-
   // This needs to be common to all the threads but does not
   // need to be visible to the client, so we will assume owneship
   // here.
@@ -753,15 +786,16 @@ void StartThreads(const int thread_tot, AnagramWorkerParams *params)
   int error = 0;
   for (auto i = 0; i < thread_tot; ++i) {
     memcpy(thread_params + i, params, sizeof(AnagramWorkerParams));
-    thread_params[i].thread_index = i;     // set cpu index
+    thread_params[i].thread_index = i;  // set cpu index
     thread_params[i].subset = &subset;  // set the common working set
+    thread_params[i].queue = &queue;  // set the common working set
     error = pthread_create(
       pthread + i,
       NULL,
       &Worker,
       (void *)(thread_params + i));
     if (error) {
-      // TODO: This is highly problematic is some threads were created!
+      // TODO: This is highly problematic if some threads were created!
       // Want to look at pthread_cancel with cleanup handlers.
       VERBOSE_LOG(LOG_NONE, "Thread creation error" << std::endl);
       free(thread_params);
@@ -789,6 +823,7 @@ void StartThreads(const int thread_tot, AnagramWorkerParams *params)
 
   return;
 }
+} // namespace anagram
 
 //
 // Exception handling
@@ -801,6 +836,7 @@ void StartThreads(const int thread_tot, AnagramWorkerParams *params)
 void SigtermHandler(int signal)
 {
   std::cout << COUT_SHOWCURSOR << COUT_NORMAL_WHITE << std::endl;
+  setvbuf(stdout, NULL, _IONBF, 1024);  // TODO: Way to restore actual orig.?
   exit(1);
 }
 
@@ -812,6 +848,11 @@ void SigtermHandler(int signal)
 int main(int argc, const char *argv[])
 {
   using namespace std;
+  using namespace anagram;
+
+  // Here we set up our trie data structure, used to organize the dictionary
+  // words for fast lookup. Will read it later after we've gathered our input
+  // arguments since they can affect what is read.
   TNode *root_node = NULL;
   TernaryTree trie;
   trie.SetRoot(&root_node);
@@ -897,6 +938,12 @@ int main(int argc, const char *argv[])
     VERBOSE_LOG(LOG_NORMAL, COUT_HIDECURSOR << COUT_BOLD_YELLOW << endl);
   }
 
+  // Turns off stream buffering.  This prevents unwanted artifacts in output
+  // such as missed carriage returns.
+  setvbuf(stdout, NULL, _IONBF, 0);
+
+  setbuf(stdout, NULL);
+
   // This reads the dictionary file and gathers all the anagrams
   // from our source word.
   ReadDictionaryFile(
@@ -925,9 +972,15 @@ int main(int argc, const char *argv[])
   params.word = word.c_str();
   params.anagrams = &anagrams;
   params.flags = flags;
-  params.thread_index = 0;   // Round-robined in StartThreads
+  params.thread_index = 0;   // Round-robined in RunJob
 
-  StartThreads(6, &params);
+  unsigned core_tot = std::thread::hardware_concurrency();
+  if (core_tot > 1) {
+    core_tot -= 1;
+  } else {
+    core_tot = 1;
+  }
+  RunJob(core_tot, &params);
 
   // Iterates through all the findings and spit them out to stdout.
   // Only does so if we are not outputting directly; otherwise the
@@ -945,5 +998,6 @@ int main(int argc, const char *argv[])
   }
   VERBOSE_LOG(LOG_NONE, COUT_NORMAL_WHITE << COUT_SHOWCURSOR << endl);
 
+  setvbuf(stdout, NULL, _IONBF, 1024);  // TODO: Way to restore actual orig.?
   return 0;
 }

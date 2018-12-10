@@ -39,7 +39,7 @@ void setVerbosity( LOG_LEVEL );
 // TODO: Make these inline?  Trouble is, "a" can be
 //  "Reading " << lineTot << " words." << endl
 // Circle back to this later...
-#define VERBOSE_LOG(lev,a) if(getVerbosity() >= lev) {std::cout << a;}
+#define VERBOSE_LOG(lev,a) if(getVerbosity() >= lev) {std::cout << a;std::flush(std::cout);}
 #define SET_VERBOSITY_LEVEL(a) setVerbosity(a)
 #define GET_LOG_VERBOSITY() (getVerbosity())
 
