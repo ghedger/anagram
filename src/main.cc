@@ -73,7 +73,7 @@ int GetWordCount(std::ifstream *file)
 //        pointer to tree root node
 void ReadDictionaryFile(
   const char *path,
-  TernaryTree *pTree,
+  TernaryTree *trie,
   TNode *& root_node
 )
 {
@@ -96,10 +96,17 @@ void ReadDictionaryFile(
 
     // Insert second half
     VERBOSE_LOG(LOG_INFO, "Reading phase 1..." << std::endl);
+    std::locale loc;
+    std::string lowerline;
     while (getline(file, line) )
     {
+      lowerline = "";
       VERBOSE_LOG(LOG_DEBUG, "|" << line.c_str() << "|" << std::endl);
-      pTree->Insert(line.c_str(), &root_node);
+      for(auto elem : line)    // convert to lowercase; trie stores thus
+         lowerline += std::tolower(elem,loc);
+      if (!trie->Find(lowerline.c_str(), root_node)) {
+        trie->Insert(line.c_str(), &root_node);
+      }
     }
 
     // Insert first half
@@ -111,7 +118,7 @@ void ReadDictionaryFile(
     {
       getline(file, line);
       VERBOSE_LOG(LOG_DEBUG, "|" << line.c_str() << "|" << std::endl);
-      pTree->Insert(line.c_str(), &root_node);
+      trie->Insert(line.c_str(), &root_node);
       idx++;
     }
   }
@@ -138,14 +145,14 @@ void PrintUsage()
 {
   using namespace std;
   OutputPreamble();
-  cout << "Anagram" << endl;
   cout << "Copyright (C) 2018 Gregory Hedger" << endl;
+  cout << "" << endl;
   cout << "Usage:" << endl;
   cout << "\tanagram [flags] the phrase or word" << endl;
   cout << "Example:" << endl;
   cout << "\nanagram hello world" << endl << endl;
   cout << "Flags:" << endl;
-  cout << "\t-b Use big dictionary files (420,000 word)" << endl;
+  cout << "\t-b Use big dictionary (~423,000 words)" << endl;
   cout << "\t-d Allow duplicates of same work to appear" << endl;
   cout << "\t\tmultiple times in same anagram" << endl;
   cout << "\t-o Output directly. This is useful for performance for" << endl;
@@ -154,11 +161,10 @@ void PrintUsage()
   cout << "\t\tcan stream directly to disk." << endl;
   cout << "\t-t use std::unordered_map tree structure instead of sparse hash array" << endl;
   cout << "\t-v set verbosity:" << endl;
-  cout << "\t\t-v0 terse: anagrams only, no formatting" << endl;
-  cout << "\t\t-v1 normal" << endl;
+  cout << "\t\t-v0 terse: anagrams only, no formatting or updates" << endl;
+  cout << "\t\t-v1 normal [default]" << endl;
   cout << "\t\t-v2 info" << endl;
   cout << "\t\t-v3 debug" << endl;
-
 }
 
 // PrintAnagram
@@ -594,6 +600,7 @@ void GetAnagrams(
               PrintAnagram(candidate);
             else
               anagrams[candidate] = 1;
+              VERBOSE_LOG(LOG_NORMAL, "\r" << "Anagrams found: " << anagrams.size() << "\r");
           }
         }
       } else {
@@ -640,8 +647,8 @@ int main(int argc, const char *argv[])
 {
   using namespace std;
   TNode *root_node = NULL;
-  TernaryTree t;
-  t.SetRoot(&root_node);
+  TernaryTree trie;
+  trie.SetRoot(&root_node);
 
   // This hides the cursor and sets up a signal handler to re-show it in
   // case user hits CTRL-C
@@ -728,13 +735,13 @@ int main(int argc, const char *argv[])
   // from our source word.
   ReadDictionaryFile(
     "anagram_dict_no_abbreviations.txt",
-    &t,
+    &trie,
     root_node
   );
   if (flags.big_dictionary) {
     ReadDictionaryFile(
       "anagram_bigdict.txt",
-      &t,
+      &trie,
       root_node
     );
   }
@@ -744,8 +751,8 @@ int main(int argc, const char *argv[])
   // the output will instead go directly to std::out, making
   // huge anagram files possible (> available physical memory).
   unordered_map< string, int > anagrams;  // container for anagram strings
-  t.SetMaxDifference(0);  // Do not clamp by Levenshtein distance
-  GetAnagrams(t, root_node, word.c_str(), anagrams, flags);
+  trie.SetMaxDifference(0);  // Do not clamp by Levenshtein distance
+  GetAnagrams(trie, root_node, word.c_str(), anagrams, flags);
 
   // Iterates through all the findings and spit them out to stdout.
   // Only does so if we are not outputting directly; otherwise the
