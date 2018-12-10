@@ -34,6 +34,7 @@
 #include <algorithm>
 
 #include "anagram_common.h"
+#include "anagram_flags.h"
 #include "templ_node.h"
 #include "ternary_tree.h"
 #include "anagram_log.h"
@@ -144,13 +145,30 @@ void PrintUsage()
   cout << "Example:" << endl;
   cout << "\nanagram hello world" << endl << endl;
   cout << "Flags:" << endl;
+  cout << "\t-b Use big dictionary files (420,000 word)" << endl;
+  cout << "\t-d Allow duplicates of same work to appear" << endl;
+  cout << "\t\tmultiple times in same anagram" << endl;
+  cout << "\t-o Output directly. This is useful for performance for" << endl;
+  cout << "\t\tinputs that produce a very large # of anagrams as" << endl;
+  cout << "\t\tthe system is not limited by available memory and" << endl;
+  cout << "\t\tcan stream directly to disk." << endl;
+  cout << "\t-t use std::unordered_map tree structure instead of sparse hash array" << endl;
   cout << "\t-v set verbosity:" << endl;
   cout << "\t\t-v0 terse: anagrams only, no formatting" << endl;
   cout << "\t\t-v1 normal" << endl;
   cout << "\t\t-v2 info" << endl;
   cout << "\t\t-v3 debug" << endl;
-  cout << "\t-t use std::unordered_map tree structure instead of sparse hash array" << endl;
+
 }
+
+// PrintAnagram
+// Common entry point to print an anagram to stdout
+// Entry: anagram string
+void PrintAnagram(const char *anagram)
+{
+  VERBOSE_LOG(LOG_NONE, anagram << std::endl);
+}
+
 // GetCharCountMap
 // Returns a unordered_map of the # of letters.
 // Example: "fussy" will return
@@ -315,7 +333,8 @@ void CombineSubsetsRecurse(
   std::unordered_map< std::string, int >& output,
   std::unordered_map< char, size_t>& master_count,
   std::unordered_map< char, size_t>& candidate_count_a,
-  std::unordered_map<std::string, int>::const_iterator& start_i
+  std::unordered_map<std::string, int>::const_iterator& start_i,
+  AnagramFlags flags
 )
 {
   using namespace std;
@@ -325,8 +344,8 @@ void CombineSubsetsRecurse(
     // Skip ourselves
     // Note: Expensive and unnecessary since we use a unordered_map<>
     // Overwrite is cheaper than this check each time
-    //if (!strcmp(i->first.c_str(), word))
-    //  continue;
+    if (!flags.allow_dupes && !strcmp(i->first.c_str(), word))
+      continue;
     candidate_count_b.clear();
     GetCharCountMap(candidate_count_b, i->first.c_str());
     // This checks to for a complete anagram assembled from partials. This is
@@ -343,8 +362,12 @@ void CombineSubsetsRecurse(
       string output_phrase = word;
       output_phrase += " ";
       output_phrase += i->first;
-      output[output_phrase] = 1;
-      VERBOSE_LOG(LOG_NORMAL, "\r" << "Anagrams found: " << output.size() << "\r");
+      if (flags.output_directly)
+        PrintAnagram(output_phrase.c_str());
+      else {
+        output[output_phrase] = 1;
+        VERBOSE_LOG(LOG_NORMAL, "\r" << "Anagrams found: " << output.size() << "\r");
+      }
     } else if (comparison_result < 0) {
       // The two candidates do not make a full anagram; Since the letter count
       // permutation is still less than that of master, the two candidates
@@ -362,7 +385,8 @@ void CombineSubsetsRecurse(
         output,
         master_count,
         new_candidate_count,
-        i
+        i,
+        flags
       );
     } else {
       // The two candidates exceed the lexical permutative value of the
@@ -380,15 +404,16 @@ void CombineSubsetsRecurse(
 void CombineSubsets(
   const char *word,
   std::unordered_map< std::string, int >& subset,
-  std::unordered_map< std::string, int >& output
+  std::unordered_map< std::string, int >& output,
+  AnagramFlags flags
 )
 {
   std::unordered_map< char, size_t> master_count, candidate_count;
   GetCharCountMap(master_count, word);
   std::unordered_map<std::string, int>::const_iterator i = subset.begin();
   while (i != subset.end()) {
-    //if (!strcmp(i->first.c_str(), word))
-    //  continue;
+    if (!flags.allow_dupes && !strcmp(i->first.c_str(), word))
+      continue;
     candidate_count.clear();
     GetCharCountMap(candidate_count, i->first.c_str());
     // Here we want to get a starting point for our character count
@@ -398,7 +423,8 @@ void CombineSubsets(
       subset, output,
       master_count,
       candidate_count,
-      i
+      i,
+      flags
     );
     ++i;
   }
@@ -420,14 +446,15 @@ void CombineSubsetsRecurseFast(
   std::unordered_map< std::string, int >& output,
   OccupancyHash& master_count,
   OccupancyHash& candidate_count_a,
-  std::unordered_map<std::string, int>::const_iterator& start_i
+  std::unordered_map<std::string, int>::const_iterator& start_i,
+  AnagramFlags flags
 )
 {
   using namespace std;
   OccupancyHash candidate_count_b;
   for (std::unordered_map<std::string, int>::const_iterator i = start_i; i != subset.end(); ++i) {
-    // Skip ourselves
-    if (!strcmp(i->first.c_str(), word))
+    // Disallow candidacy of already-processed word if dupes are disallowed.
+    if (!flags.allow_dupes && !strcmp(i->first.c_str(), word))
       continue;
 
     candidate_count_b.clear();
@@ -445,9 +472,12 @@ void CombineSubsetsRecurseFast(
       string output_phrase = word;
       output_phrase += " ";
       output_phrase += i->first;
-      output[output_phrase] = 1;
-
-      VERBOSE_LOG(LOG_NORMAL, "\r" << "Anagrams found: " << output.size() << "\r");
+      if (flags.output_directly)
+        PrintAnagram(output_phrase.c_str());
+      else {
+        output[output_phrase] = 1;
+        VERBOSE_LOG(LOG_NORMAL, "\r" << "Anagrams found: " << output.size() << "\r");
+      }
     } else if (comparison_result < 0) {
       // The two candidates do not make a full anagram; Since the letter count
       // permutation is still less than that of master, the two candidates
@@ -465,7 +495,8 @@ void CombineSubsetsRecurseFast(
         output,
         master_count,
         new_candidate_count,
-        i
+        i,
+        flags
       );
     } else {
       // The two candidates exceed the lexical permutative value of the
@@ -483,14 +514,15 @@ void CombineSubsetsRecurseFast(
 void CombineSubsetsFast(
   const char *word,
   std::unordered_map< std::string, int >& subset,
-  std::unordered_map< std::string, int >& output
+  std::unordered_map< std::string, int >& output,
+  AnagramFlags flags
 )
 {
   OccupancyHash master_count, candidate_count;
   master_count.GetCharCountMap(word);
   std::unordered_map<std::string, int>::const_iterator i = subset.begin();
   while (i != subset.end()) {
-    if (!strcmp(i->first.c_str(), word))
+    if (!flags.allow_dupes && !strcmp(i->first.c_str(), word))
       continue;
     candidate_count.clear();
     candidate_count.GetCharCountMap(i->first.c_str());
@@ -503,7 +535,8 @@ void CombineSubsetsFast(
       output,
       master_count,
       candidate_count,
-      i
+      i,
+      flags
     );
     ++i;
   }
@@ -516,15 +549,15 @@ void GetAnagrams(
   TNode *root_node,
   const char *word,
   std::unordered_map< std::string, int >& anagrams,
-  bool use_tree_engine
+  AnagramFlags flags
 )
 {
   using namespace std;
+  // Match lexical permutations:
   // We are going to try to find words containing ALL of the letters.
   // We will generate starting with each letter and filter out the ones that
   // have too many.
   size_t word_len = strlen((const char *)word);
-
   unordered_map< string, int > subset;
   map< int, string > extrapolation;
 
@@ -532,10 +565,14 @@ void GetAnagrams(
   // A) complete set of one-word complete anagrams, for example:
   //  "live" -> "evil", "levi", "veil", "vile";
   // B) full words representing potential parts of anagrams.
+  char completed[256];
+  memset(completed, 0, sizeof(completed));
   VERBOSE_LOG(LOG_DEBUG, "Step 1: Garner full-word anagrams and partials..." << endl);
   for (size_t i = 0; i <= word_len; i++) {
     char c[2] = {0,0};
     *c = word[i];
+    if(completed[(size_t)c[0]])   // don't repeat letters already done
+      continue;
     extrapolation.clear();
     t.FuzzyFind((const char *)c, root_node, &extrapolation);
 
@@ -553,7 +590,10 @@ void GetAnagrams(
         // Does word match against character count?
         if (MatchCharCounts(candidate, word)) {
           if (!anagrams.count(candidate)) {
-            anagrams[candidate] = 1;
+            if (flags.output_directly)
+              PrintAnagram(candidate);
+            else
+              anagrams[candidate] = 1;
           }
         }
       } else {
@@ -574,10 +614,10 @@ void GetAnagrams(
 
   // Step 2: Now we have a complete set of subsets; we must now combine them to
   // obtain combinations matching the input word character count permutation.
-  if (use_tree_engine) {
-    CombineSubsets(word, subset, anagrams);
+  if (flags.tree_engine) {
+    CombineSubsets(word, subset, anagrams, flags);
   } else {
-    CombineSubsetsFast(word, subset, anagrams);
+    CombineSubsetsFast(word, subset, anagrams, flags);
   }
 }
 
@@ -601,6 +641,7 @@ int main(int argc, const char *argv[])
   using namespace std;
   TNode *root_node = NULL;
   TernaryTree t;
+  t.SetRoot(&root_node);
 
   // This hides the cursor and sets up a signal handler to re-show it in
   // case user hits CTRL-C
@@ -615,7 +656,9 @@ int main(int argc, const char *argv[])
 
   // This parses the arguments and takes subsequent non-dashed arguments
   // as the input (no quotes required)
-  bool use_old_engine = false;
+  AnagramFlags flags;
+  flags.tree_engine = flags.allow_dupes = flags.output_directly
+    = flags.big_dictionary = 0;
   string word;
   if (1 < argc) {
     int i = 1;
@@ -634,18 +677,21 @@ int main(int argc, const char *argv[])
               }
             }
             break;
+          case 'b': {
+              flags.big_dictionary = 1;
+            }
+            break;
           case 'd': {
-              unsigned int diff;
-              sscanf(&argv[i][2], "%d", &diff);
-              if (diff > 0 && diff < (unsigned int) ~0) {
-                cout << diff << endl;
-                t.SetMaxDifference( (int) diff);
-              }
+              flags.allow_dupes = 1;
             }
             break;
           case 't': {
-            use_old_engine = true;
-          }
+             flags.tree_engine = 1;
+            }
+            break;
+          case 'o': {
+             flags.output_directly = 1;
+            }
             break;
 
           default:
@@ -674,26 +720,48 @@ int main(int argc, const char *argv[])
   }
 
   // This will hide the cursor and set the color
-  ////VERBOSE_LOG(LOG_NORMAL, COUT_HIDECURSOR << COUT_BOLD_YELLOW << endl);
+  if (!flags.output_directly) {
+    VERBOSE_LOG(LOG_NORMAL, COUT_HIDECURSOR << COUT_BOLD_YELLOW << endl);
+  }
 
   // This reads the dictionary file and gathers all the anagrams
   // from our source word.
-  ReadDictionaryFile("dict_no_abbreviations.txt", &t, root_node);
-  unordered_map< string, int > anagrams;
-  t.SetMaxDifference(0);
-  GetAnagrams(t, root_node, word.c_str(), anagrams, use_old_engine);
+  ReadDictionaryFile(
+    "anagram_dict_no_abbreviations.txt",
+    &t,
+    root_node
+  );
+  if (flags.big_dictionary) {
+    ReadDictionaryFile(
+      "anagram_bigdict.txt",
+      &t,
+      root_node
+    );
+  }
+
+  // Sets up our structure to hold the anagrams.  Note that, if
+  // the -o "output_directly" flag is set, this will not be used and
+  // the output will instead go directly to std::out, making
+  // huge anagram files possible (> available physical memory).
+  unordered_map< string, int > anagrams;  // container for anagram strings
+  t.SetMaxDifference(0);  // Do not clamp by Levenshtein distance
+  GetAnagrams(t, root_node, word.c_str(), anagrams, flags);
 
   // Iterates through all the findings and spit them out to stdout.
-  VERBOSE_LOG(LOG_NORMAL, "\r                         \r"
-    << COUT_BOLD_WHITE << word.c_str()
-    << COUT_BOLD_YELLOW << endl);
-  int count = 0;
-  for (auto i : anagrams) {
-    cout << i.first << endl;
-    ++count;
+  // Only does so if we are not outputting directly; otherwise the
+  // output collection will be empty.
+  if (!flags.output_directly) {
+    VERBOSE_LOG(LOG_NORMAL, "\r                         \r"
+      << COUT_BOLD_WHITE << word.c_str()
+      << COUT_BOLD_YELLOW << endl);
+    int count = 0;
+    for (auto i : anagrams) {
+      cout << i.first << endl;
+      ++count;
+    }
+    VERBOSE_LOG(LOG_NORMAL,  COUT_BOLD_WHITE << count << " ANAGRAMS FOUND.");
   }
-  VERBOSE_LOG(LOG_NORMAL,  COUT_BOLD_WHITE << count << " ANAGRAMS FOUND."
-    << COUT_SHOWCURSOR << endl);
+  VERBOSE_LOG(LOG_NONE, COUT_NORMAL_WHITE << COUT_SHOWCURSOR << endl);
 
   return 0;
 }

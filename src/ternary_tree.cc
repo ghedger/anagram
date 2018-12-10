@@ -45,6 +45,30 @@ typedef unsigned char UCHAR;
 // This is a dictionary and allows us quick word lookup
 // with a yes/no response.
 
+TernaryTree::TernaryTree()
+{
+  tie_hwm_ = 0;
+  max_diff_ = 10;
+}
+
+TernaryTree::~TernaryTree()
+{
+  DeleteTree(GetRoot());
+}
+
+void TernaryTree::SetRoot(TNode **root)
+{
+  root_ = root;
+}
+
+TNode *TernaryTree::GetRoot()
+{
+  TNode *root = nullptr;
+  if (root_ && *root_)
+    root = *root_;
+  return root;
+}
+
 // InsertNode
 // Insert a node into the tree
 //
@@ -324,16 +348,40 @@ bool TernaryTree::Extrapolate(
 
 // AllocNode
 // Insert a node into the tree
-//
-// @In: key key of node to add
-// @Out: Pointer to node
+// Entry: key
+// Exit: pointer to node, or 0 if error
 TNode *TernaryTree::AllocNode(char key)
 {
   TNode *node = new TNode(key);
   assert(node);
-  node->SetKey(key);
+  if (node) {
+    node->SetKey(key);
+  }
   return node;
 }
+
+// FreeNode
+// Free a node.  Should not be called as it is intended only
+// for complete trie deletion (does not update linkage).
+// Entry: pointer to node.
+void TernaryTree::DeleteNode(TNode *node)
+{
+  assert(node);
+  if (node) {
+    delete node;
+  }
+}
+
+void TernaryTree::DeleteTree(TNode *node)
+{
+  if (node) {
+    TernaryTree::DeleteTree(node->GetLeft());
+    TernaryTree::DeleteTree(node->GetCenter());
+    TernaryTree::DeleteTree(node->GetRight());
+    DeleteNode(node);
+  }
+}
+
 
 // Utility preprocessor macro for Levenshtein
 #if !defined(MIN3)

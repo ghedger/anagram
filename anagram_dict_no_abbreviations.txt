@@ -689,7 +689,6 @@ Austrian
 Austrians
 Austronesian
 Autumn
-Av
 Ava
 Avalon
 Ave
@@ -724,8 +723,7 @@ Aztec
 Aztecan
 Aztecs
 Aztlan
-BMW
-Ba
+Baa
 Baal
 Babar
 Babbage
@@ -2382,7 +2380,6 @@ Debouillet
 Debra
 Debs
 Debussy
-Dec
 Decalogue
 Decatur
 Decca
@@ -3070,7 +3067,6 @@ Faustus
 Fawkes
 Fay
 Faye
-Feb
 Februaries
 February
 Februarys
@@ -4167,7 +4163,6 @@ Hydra
 Hymen
 Hyperion
 Hyundai
-IBM
 Iaccoca
 Iago
 Ian
@@ -4351,7 +4346,6 @@ Izhevsk
 Izmir
 Izod
 Izvestia
-JFK
 Jack
 Jackie
 Jacklyn
@@ -4978,7 +4972,6 @@ Kyoto
 Kyrgyzstan
 Kyushu
 Köln
-LBJ
 Laban
 Labrador
 Labradors
@@ -5443,9 +5436,6 @@ Lyra
 Lysenko
 Lysistrata
 Lysol
-MCI
-MGM
-MIT
 Maalox
 Mabel
 Mable
@@ -5633,7 +5623,6 @@ Maori
 Maoris
 Mapplethorpe
 Maputo
-Mar
 Mara
 Maracaibo
 Marat
@@ -6359,7 +6348,6 @@ Myrtle
 Mysore
 Myst
 Münchhausen
-NORAD
 Nabisco
 Nabokov
 Nader
@@ -6646,7 +6634,6 @@ NutraSweet
 NyQuil
 Nyasa
 Nyerere
-OHSA
 OK
 Oahu
 Oakland
@@ -7055,7 +7042,6 @@ Petrarch
 Petty
 Peugeot
 Pfizer
-PhD
 Phaedra
 Phaethon
 Phanerozoic
@@ -7397,7 +7383,6 @@ Quixote
 Quixotism
 Qumran
 Quonset
-RCA
 Rabat
 Rabelais
 Rabelaisian
@@ -8611,7 +8596,6 @@ Szechuan
 Szilard
 Szymborska
 Sèvres
-TWA
 Ta
 Tabasco
 Tabatha
@@ -9065,7 +9049,6 @@ Tyre
 Tyree
 Tyrone
 Tyson
-UCLA
 Ubangi
 Ucayali
 Uccello
@@ -16997,6 +16980,7 @@ butters
 butterscotch
 buttery
 buttes
+butthole
 butting
 buttock
 buttocked
@@ -45742,7 +45726,6 @@ mowing
 mown
 mows
 mozzarella
-mu
 much
 mucilage
 muck
@@ -47149,8 +47132,6 @@ nowise
 noxious
 nozzle
 nozzles
-nth
-nu
 nuance
 nuanced
 nuances

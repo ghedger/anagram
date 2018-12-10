@@ -59,11 +59,10 @@ class TNode : public TemplNode <UCHAR, TNode> {
 // with a yes/no response.
 class TernaryTree {
  public:
-  TernaryTree() {
-    tie_hwm_ = 0;
-    max_diff_ = 10;
-  };
-  ~TernaryTree() {};
+  TernaryTree();
+  ~TernaryTree();
+  void SetRoot(TNode **root);
+  TNode *GetRoot();
   TNode * Insert(const char *pWord, TNode **ppNode = NULL);
   bool Find(const char *pWord, TNode *pParent, TNode ** ppTerminal = NULL);
   void FuzzyFind(
@@ -94,11 +93,14 @@ class TernaryTree {
  int GetMaxDifference() { return max_diff_; }
  protected:
   TNode *AllocNode(char key);
+  void DeleteNode(TNode *node);
+  void DeleteTree(TNode *node);
   int CalcLevenshtein(const char *s1, const char *s2);
 
   // member variables
   int tie_hwm_;
   int max_diff_;
+  TNode **root_;
 };
 
 #endif // #ifndef _TERNARY_TREE_H
