@@ -17,12 +17,14 @@ OBJEXT      := o
 #Flags, Libraries and Includes
 
 #PROFILING
-#CFLAGS      := -std=c++11 -g -Wall -O3 -pg -ggdb -c
-#LFLAGS      := -pg
+#CFLAGS      := -std=c++11 -g -Wall -O3 -pthread -pg -ggdb -c
+#LFLAGS      := -pg -pthread
 #DEBUGGING
-#CFLAGS      := -std=c++11 -g -Wall -O0 -ggdb -c -finstrument-functions
+#CFLAGS      := -std=c++11 -g -Wall -O0 -pthread-ggdb -c -finstrument-functions
+#LFLAGS      := -pthread
 #OPTIMIZED
-CFLAGS      := -std=c++11 -g -Wall -O3 -c
+CFLAGS      := -std=c++11 -g -Wall -O3 -pthread -c
+LFLAGS      := -pthread
 
 LIB 				:=
 INC         := -I$(INCDIR) -I/usr/local/include
