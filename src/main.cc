@@ -160,7 +160,6 @@ void PrintUsage()
 {
   using namespace std;
   OutputPreamble();
-  cout << "Copyright (C) 2018 Gregory Hedger" << endl;
   cout << "" << endl;
   cout << "Usage:" << endl;
   cout << "\tanagram [flags] the phrase or word" << endl;
@@ -469,10 +468,7 @@ void CombineSubsets(
 void PrintAnagram(const char *anagram)
 {
   output_lock.Acquire();
-  //setlinebuf(stdout);
-  //setbuf(stdout, NULL);
   std::cout << anagram << std::endl;
-  std::flush(std::cout);
   output_lock.Release();
 }
 
@@ -933,6 +929,7 @@ int main(int argc, const char *argv[])
   // This parses the arguments and takes subsequent non-dashed arguments
   // as the input (no quotes required)
   AnagramFlags flags;
+  memset(&flags, 0, sizeof(flags));
   flags.tree_engine = flags.allow_dupes = flags.output_directly
     = flags.big_dictionary = 0;
   string word;
@@ -963,20 +960,22 @@ int main(int argc, const char *argv[])
             }
             break;
            case 'e': {
+              // Parses out comma-separated lists of words to exclude, form:
+              // parse out -eword1,word2
               string parse;
               int j = 0;
-              const char *nchar = &argv[i][j + 2];  // parse out -eword1,word2
-              while (*nchar) {
-                if (',' == *nchar || !(*(nchar+1))) {
+              const char *nchar = &argv[i][j + 2 - 1];
+              do {
+                nchar++;
+                if (',' == *nchar || !(*nchar)) {
                   std::transform(parse.begin(), parse.end(), parse.begin(),
                     ::tolower);
                   excludeset[parse] = 1;
                   parse = "";
-                  } else {
+                } else {
                     parse += *nchar;
-                  }
-                nchar++;
                 }
+              } while (*nchar);
             }
             break;
           case 's': {
@@ -1024,8 +1023,9 @@ int main(int argc, const char *argv[])
 
   // Turns off stream buffering.  This prevents unwanted artifacts in output
   // such as missed carriage returns.
-  setvbuf(stdout, NULL, _IONBF, 0);
+  //setvbuf(stdout, NULL, _IONBF, 0);
 
+  // turns off buffering so text updates show up on console immediately.
   setbuf(stdout, NULL);
 
   // This reads the dictionary file and gathers all the anagrams
