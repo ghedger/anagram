@@ -105,7 +105,7 @@ void ReadDictionaryFile(
     while (getline(file, line) )
     {
       lowerline = "";
-      VERBOSE_LOG(LOG_DEBUG, "|" << line.c_str() << "|" << std::endl);
+      //VERBOSE_LOG(LOG_DEBUG, "|" << line.c_str() << "|" << std::endl);
       for(auto elem : line)    // convert to lowercase; trie stores thus
          lowerline += std::tolower(elem,loc);
       if (!trie->Find(lowerline.c_str(), root_node)) {
@@ -482,7 +482,7 @@ void PrintSubset(std::map< std::string, int >& subset, OutputQueue *queue)
         queue->Push(out.c_str());
         out = "";
       } else {
-        out += "\t";
+        out += ",";
       }
     }
     out += "\n\n";
@@ -596,12 +596,11 @@ void CombineSubsetsFast(
 )
 {
   OccupancyHash master_count, candidate_count;
-  subset_lock.Acquire();
   master_count.GetCharCountMap(word);
   std::map<std::string, int>::const_iterator i = subset.begin();
-  subset_lock.Release();
-  for (auto inc = 0; inc < thread_index; inc++) {
-    ++i;
+  for (auto inc = 0; inc < thread_index; ++inc) {
+    if( i != subset.end())
+      ++i;
   }
   // We want to interleave the processing, so
   // we will start at a staggered position depending on our
@@ -610,7 +609,7 @@ void CombineSubsetsFast(
     if (!flags.allow_dupes && !strcmp(i->first.c_str(), word))
       continue;
     candidate_count.clear();
-    candidate_count.GetCharCountMap(i->first.c_str());
+    candidate_count.GetCharCountMap(i->first.c_str()); // count char occurrences
 
     // Here we want to get a starting point for our character count
     // for the candidate, and compare it against the others.
@@ -625,7 +624,7 @@ void CombineSubsetsFast(
         queue
     );
     // Increment by cpu count to preserve the task interleaving
-    for (size_t inc = 0; inc < cpu_tot; inc++) {
+    for (size_t inc = 0; inc < cpu_tot; ++inc) {
       if( i != subset.end())
         ++i;
     }
@@ -652,17 +651,19 @@ void GetAnagrams(
   // We are going to try to find words containing ALL of the letters.
   // We will generate starting with each letter and filter out the ones that
   // have too many.
-  size_t word_len = strlen((const char *)word);
-  map< int, string > extrapolation;
 
-  // Step 1: At the end of this process we will have a list of
-  // A) complete set of one-word complete anagrams, for example:
-  //  "live" -> "evil", "levi", "veil", "vile";
-  // B) full words representing potential parts of anagrams.
-  // Note that this first porion is single-threaded.
-  VERBOSE_LOG(LOG_DEBUG, "Step 1: Garner full-word anagrams and partials..." << endl);
   if (thread_index == 0) {
     gather_lock.Acquire();  // block other threads until this first bit is done
+    size_t word_len = strlen((const char *)word);
+    map< int, string > extrapolation;
+
+    // Step 1: At the end of this process we will have a list of
+    // A) complete set of one-word complete anagrams, for example:
+    //  "live" -> "evil", "levi", "veil", "vile";
+    // B) full words representing potential parts of anagrams.
+    // Note that this first porion is single-threaded.
+    VERBOSE_LOG(LOG_DEBUG, "Step 1: Garner full-word anagrams and partials..." << endl);
+
     for (size_t i = 0; i <= word_len; ++i) {
       char c[2] = {0,0};
       *c = word[i];
@@ -724,6 +725,7 @@ void GetAnagrams(
     }
 
     gather_lock.Release();
+
   } else {
     // Non-first threads will block on this until the gathering
     // process is complete
@@ -785,7 +787,11 @@ void *Worker(void *worker_params)
     params->queue
   );
 
-  --thread_total;
+  usleep(10000);
+
+  if (thread_total)
+    --thread_total;
+
   return nullptr;
 }
 
@@ -811,8 +817,8 @@ void RunJob(const int thread_tot, AnagramWorkerParams *params)
     return;
   }
 
-  pthread_t *pthread = (pthread_t *) malloc(thread_tot * sizeof(pthread_t));
-  if (!pthread) {
+  pthread_t *pthread_struct = (pthread_t *) malloc(thread_tot * sizeof(pthread_t));
+  if (!pthread_struct) {
     free(thread_params);
     VERBOSE_LOG(LOG_NONE, "Allocation error(2)" << std::endl);
     return;
@@ -830,7 +836,7 @@ void RunJob(const int thread_tot, AnagramWorkerParams *params)
     thread_params[i].subset = &subset;  // set the common working set
     thread_params[i].queue = &queue;  // set the common working set
     error = pthread_create(
-      pthread + i,
+      &pthread_struct[i],
       NULL,
       &Worker,
       (void *)(thread_params + i));
@@ -842,22 +848,27 @@ void RunJob(const int thread_tot, AnagramWorkerParams *params)
       return;
     }
     // Wait a few milliseconds to allow first thread to get in
-    struct timespec ts = {0, 10000000L };
-    nanosleep(&ts, NULL);
+    if (!i) {
+      struct timespec ts = {0, 10000000L };
+      nanosleep(&ts, NULL);
+    }
 
     ++thread_total;
   }
 
   // Twiddle our thumbs while threads do their thing
-  while (thread_total) {
-    struct timespec ts = {0, 100000000L };
-    ts.tv_nsec = (rand() & 10000000) | 1;
-    nanosleep(&ts, NULL);
-  }
+  void *result;
+  pthread_join(pthread_struct[0],&result);
+  pthread_join(pthread_struct[1],&result);
+  pthread_join(pthread_struct[2],&result);
+  pthread_join(pthread_struct[3],&result);
+  pthread_join(pthread_struct[4],&result);
+  pthread_join(pthread_struct[5],&result);
+  pthread_join(pthread_struct[6],&result);
 
   // Clean up and get out
-  if (pthread)
-    free(pthread);
+  if (pthread_struct)
+    free(pthread_struct);
   if (thread_params)
     free(thread_params);
 
