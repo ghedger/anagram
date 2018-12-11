@@ -137,10 +137,21 @@ void OutputPreamble()
 {
   using namespace std;
   cout << "Anagram" << endl;
+  cout << "Copyright (c) 2018 Greg Hedger" << endl;
+  cout << "MIT License" << endl;
+  cout << endl;
+  cout << "Permission is hereby granted, free of charge, to any person obtaining a copy" << endl;
+  cout << "of this software and associated documentation files (the \"Software\"), to deal" << endl;
+  cout << endl;
+  cout << "in the Software without restriction, including without limitation the rights" << endl;
+  cout << "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell" << endl;
+  cout << "copies of the Software, and to permit persons to whom the Software is" << endl;
+  cout << "furnished to do so, subject to the following conditions:" << endl;
+  cout << endl;
+  cout << "The above copyright notice and this permission notice shall be included in all" << endl;
+  cout << "copies or substantial portions of the Software." << endl;
   cout << "Copyright (C) 2019 Gregory P. Hedger" << endl;
-  cout << "This program comes with ABSOLUTELY NO WARRANTY." << endl;
-  cout << "This is free software, and you are welcome to redistribute it" << endl;
-  cout << "under certain conditions covered by GNU Public License v3.0." << endl;
+  cout << endl;
 }
 
 // PrintUsage
