@@ -527,7 +527,6 @@ Aristophanes
 Aristotelian
 Aristotle
 Arius
-Ariz
 Arizona
 Arizonan
 Arizonans
@@ -5753,7 +5752,6 @@ Mason
 Masonic
 Masonite
 Masons
-Mass
 Massachusetts
 Massasoit
 Massenet
@@ -7121,7 +7119,6 @@ Pitts
 Pittsburgh
 Pius
 Pizarro
-Pkwy
 Planck
 Plantagenet
 Plasticine
@@ -9344,7 +9341,6 @@ Warren
 Warsaw
 Warwick
 Wasatch
-Wash
 Washington
 Washingtonian
 Washingtonians

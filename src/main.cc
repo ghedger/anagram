@@ -159,10 +159,12 @@ void PrintUsage()
   cout << "\t-b Use big dictionary (~423,000 words)" << endl;
   cout << "\t-d Allow duplicates of same work to appear" << endl;
   cout << "\t\tmultiple times in same anagram" << endl;
+  cout << "\t-e exlude (example -ealb,hello,exclude" << endl;
   cout << "\t-o Output directly. This is useful for performance for" << endl;
   cout << "\t\tinputs that produce a very large # of anagrams as" << endl;
   cout << "\t\tthe system is not limited by available memory and" << endl;
   cout << "\t\tcan stream directly to disk." << endl;
+  cout << "\t-s print subset dictionary of partial candidate words" << endl;
   cout << "\t-t use std::map tree structure instead of sparse hash array" << endl;
   cout << "\t-v set verbosity:" << endl;
   cout << "\t\t-v0 terse: anagrams only, no formatting or updates" << endl;
@@ -463,6 +465,31 @@ void PrintAnagram(const char *anagram)
   output_lock.Release();
 }
 
+// PrintSubset
+// Prints the complete subset dictionary of candidate words for the input.
+// Entry: subset
+void PrintSubset(std::map< std::string, int >& subset, OutputQueue *queue)
+{
+  const int kColCount = 8;
+  if (queue) {
+    auto column_count = kColCount;
+    std::string out;
+    for (auto i : subset) {
+      out += i.first;
+      if (!--column_count) {
+        column_count = kColCount;
+        out += "\n";
+        queue->Push(out.c_str());
+        out = "";
+      } else {
+        out += "\t";
+      }
+    }
+    out += "\n\n";
+    queue->Push(out.c_str());
+  }
+}
+
 // This is to ensure the output queue is not overloaded
 const int kOutputQueueThrottleFrequency = 100;
 static int output_queue_throttle = kOutputQueueThrottleFrequency;
@@ -614,6 +641,7 @@ void GetAnagrams(
   const char *word,
   std::map< std::string, int >& anagrams,
   std::map< std::string, int >& subset,
+  std::map< std::string, int >& excludeset,
   AnagramFlags flags,
   int thread_index,
   OutputQueue *queue
@@ -639,9 +667,10 @@ void GetAnagrams(
       char c[2] = {0,0};
       *c = word[i];
 
-      if(chars_completed[(size_t)c[0]]) {  // don't repeat letters already done
+      if (chars_completed[(size_t)c[0]]) {  // don't repeat letters already done
         continue;
       }
+
       chars_completed[(size_t)c[0]] = 1;
 
       extrapolation.clear();
@@ -650,10 +679,13 @@ void GetAnagrams(
       // Now we'll check the lengths of each word and compare it to our input
       // For the few that match, we'll check and see if they have the same
       // characters.
-      // TODO: It's likely possible to optimize what follows.
-      // Probably should look at using a binary heap or other data structure.
       size_t candidate_len = 0;
       for (auto it : extrapolation) {
+        // This checks if the word is in the exclude set;
+        // if so, ignore and continue.
+        if (excludeset.end() != excludeset.find(it.second))
+          continue;
+
         const char *candidate = it.second.c_str();
         // This checkes for a length and character count match; if found
         // then the word is an anagram so we add it to our output collection.
@@ -685,6 +717,12 @@ void GetAnagrams(
         }
       }
     }
+
+    // If we are to print subsets, this does that now.
+    if (flags.print_subset) {
+      PrintSubset(subset,queue);
+    }
+
     gather_lock.Release();
   } else {
     // Non-first threads will block on this until the gathering
@@ -721,6 +759,7 @@ struct AnagramWorkerParams {
   const char *word;
   std::map< std::string, int > *anagrams;
   std::map< std::string, int > *subset;
+  std::map< std::string, int > *excludeset;
   AnagramFlags flags;
   int thread_index;
   OutputQueue *queue;
@@ -740,6 +779,7 @@ void *Worker(void *worker_params)
     params->word,
     *params->anagrams,
     *params->subset,
+    *params->excludeset,
     params->flags,
     params->thread_index,
     params->queue
@@ -874,6 +914,7 @@ int main(int argc, const char *argv[])
   flags.tree_engine = flags.allow_dupes = flags.output_directly
     = flags.big_dictionary = 0;
   string word;
+  map< string, int > excludeset;
   if (1 < argc) {
     int i = 1;
     while (i < argc) {
@@ -897,6 +938,27 @@ int main(int argc, const char *argv[])
             break;
           case 'd': {
               flags.allow_dupes = 1;
+            }
+            break;
+           case 'e': {
+              string parse;
+              int j = 0;
+              const char *nchar = &argv[i][j + 2];  // parse out -eword1,word2
+              while (*nchar) {
+                if (',' == *nchar || !(*(nchar+1))) {
+                  std::transform(parse.begin(), parse.end(), parse.begin(),
+                    ::tolower);
+                  excludeset[parse] = 1;
+                  parse = "";
+                  } else {
+                    parse += *nchar;
+                  }
+                nchar++;
+                }
+            }
+            break;
+          case 's': {
+             flags.print_subset = 1;
             }
             break;
           case 't': {
@@ -973,6 +1035,7 @@ int main(int argc, const char *argv[])
   params.anagrams = &anagrams;
   params.flags = flags;
   params.thread_index = 0;   // Round-robined in RunJob
+  params.excludeset = &excludeset;   // Round-robined in RunJob
 
   unsigned core_tot = std::thread::hardware_concurrency();
   if (core_tot > 1) {
