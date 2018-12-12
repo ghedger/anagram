@@ -34,6 +34,7 @@ namespace anagram {
 
 volatile bool OutputQueue::terminate_;
 volatile bool OutputQueue::terminated_;
+pthread_t OutputQueue::pthread_;
 
 // Constructor
 // This will start a service thread that runs on a timer and processes the
@@ -55,7 +56,7 @@ OutputQueue::OutputQueue()
 // cleanup up any allocated resources
 OutputQueue::~OutputQueue()
 {
-  terminate_ = true;
+  TerminateThread();
 }
 
 // StartThread
@@ -64,15 +65,10 @@ void OutputQueue::StartThread()
 {
   terminate_ = false;
   terminated_ = false;
-  pthread_t *pthread_ = (pthread_t *) malloc(sizeof(pthread_t));
-  if (!pthread_) {
-    VERBOSE_LOG(LOG_NONE, "Allocation error(3)" << std::endl);
-    return;
-  }
 
   int error = 0;
   error = pthread_create(
-    pthread_,
+    &pthread_,
     nullptr,
     &OutputQueue::Worker,
     (void *)(this)    // <- This is the thread's link to the outside world.
@@ -81,10 +77,16 @@ void OutputQueue::StartThread()
     // TODO: This is highly problematic if some threads were created!
     // Want to look at pthread_cancel with cleanup handlers.
     VERBOSE_LOG(LOG_NONE, "Thread creation error" << std::endl);
-    free(pthread_);
-    pthread_ = nullptr;
   }
   return;
+}
+
+// TerminateThread
+void OutputQueue::TerminateThread()
+{
+  terminate_ = true;
+  void *result;
+  pthread_join(OutputQueue::pthread_,&result);
 }
 
 // AcquireLock
@@ -145,7 +147,6 @@ void OutputQueue::Push(const char *text)
   queue_lock_.Release();
 }
 
-
 // GetItemTot
 // Returns the # of items currently awaiting processing in the queue.
 // Exit: # of items in queue
@@ -158,7 +159,6 @@ size_t OutputQueue::GetItemTot()
   }
   return tot;
 }
-
 
 // Worker
 // This is the service thread.  It sits in a loop and polls for any queue

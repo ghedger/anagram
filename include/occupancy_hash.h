@@ -40,7 +40,7 @@ class OccupancyHash
     return (size_t) char_count_[ (size_t) char_index];
   }
 
-  void operator+=(const OccupancyHash& b) {
+  inline void operator+=(const OccupancyHash& b) {
     size_t char_index;
     size_t b_index = b.index_ptr_;
     while (b_index) {
@@ -95,7 +95,8 @@ class OccupancyHash
       if (char_count_[(size_t)occupancy_index_[indexindex]] >
         b.char_count_[(size_t)occupancy_index_[indexindex]]) {
         result = 1; // we have greater count on at least one unique char
-        break;      // No need to coninue...
+        break;      // No need to coninue... this greaterness supercedes
+                    // any previously-calculated lessnesss.
       }
       if (char_count_[(size_t)occupancy_index_[indexindex]] <
         b.char_count_[(size_t)occupancy_index_[indexindex]]) {

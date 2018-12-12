@@ -58,7 +58,7 @@ class OutputQueue {
   void ReleaseLock();
  private:
   void StartThread();
-  void Terminate();
+  void TerminateThread();
   static void *Worker(void *);
   size_t GetItemTot();
   // Queue variables
@@ -71,7 +71,7 @@ class OutputQueue {
   // Thread variables
   static volatile bool  terminate_;
   static volatile bool  terminated_;
-  static pthread_t *    pthread_;
+  static pthread_t      pthread_;
 };
 } // namespace anagram
 
