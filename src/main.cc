@@ -915,8 +915,7 @@ int main(int argc, const char *argv[])
   TernaryTree trie;
   trie.SetRoot(&root_node);
 
-  // This hides the cursor and sets up a signal handler to re-show it in
-  // case user hits CTRL-C
+  // This  sets up a signal handler to re-show the cursor if user ctrl-c's
   struct sigaction sigIntHandler;
   sigIntHandler.sa_handler = SigtermHandler;
   sigemptyset(&sigIntHandler.sa_mask);
