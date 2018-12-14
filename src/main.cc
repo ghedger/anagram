@@ -336,7 +336,6 @@ int AddAndCompare(
   return result;
 }
 
-
 //
 // Threading data structures
 //
@@ -345,122 +344,6 @@ static size_t cpu_tot;
 static anagram::Lock output_lock;
 static anagram::Lock subset_lock;
 static anagram::Lock gather_lock;
-
-#if 0
-// CombineSubsetsRecurse
-// Recurse into subsets, additively updating candidate count.
-// We have a candidate count passed in, and we will compare
-/// against the other words to get the second candidate count.
-// until we reach a full combo.
-// Entry: word
-//        subset map
-//        output map
-//        candidate combo
-// DEPRECATED
-void CombineSubsetsRecurse(
-  const char *word,
-  std::map< std::string, int >& subset,
-  std::map< std::string, int >& output,
-  std::map< char, size_t>& master_count,
-  std::map< char, size_t>& candidate_count_a,
-  std::map<std::string, int>::const_iterator& start_i,
-  AnagramFlags flags
-)
-{
-  using namespace std;
-  map< char, size_t> candidate_count_b;
-  for (std::map<std::string, int>::const_iterator i = start_i; i != subset.end(); ++i) {
-    // Skip ourselves
-    // Note: Expensive and unnecessary since we use a map<>
-    // Overwrite is cheaper than this check each time
-    if (!flags.allow_dupes && !strcmp(i->first.c_str(), word))
-      continue;
-    candidate_count_b.clear();
-    GetCharCountMap(candidate_count_b, i->first.c_str());
-    // This checks to for a complete anagram assembled from partials. This is
-    // determined by a permutation equivalency.
-    // The addition will be saved in candidate_count_b.
-    int comparison_result = AddAndCompare(
-      master_count,
-      candidate_count_a,
-      candidate_count_b
-    );
-    if (!comparison_result) {
-      // This combination is a complete anagram; add it to the output,
-      // separating the partials by spaces.
-      string output_phrase = word;
-      output_phrase += " ";
-      output_phrase += i->first;
-      if (flags.output_directly)
-        PrintAnagram(output_phrase.c_str());
-      else {
-        output[output_phrase] = 1;
-        VERBOSE_LOG(LOG_NORMAL, "\r" << "Anagrams found: " << output.size()
-          << "                              " << "\r");
-      }
-    } else if (comparison_result < 0) {
-      // The two candidates do not make a full anagram; Since the letter count
-      // permutation is still less than that of master, the two candidates
-      // combined still form a partial.  Below, we combine them in a space-
-      // delimited phrase and recurse.
-      string output_phrase = word;
-      output_phrase += " ";
-      output_phrase += i->first;
-
-      map< char, size_t> new_candidate_count;
-      GetCharCountMap(new_candidate_count, output_phrase.c_str());
-      CombineSubsetsRecurse(
-        output_phrase.c_str(),
-        subset,
-        output,
-        master_count,
-        new_candidate_count,
-        i,
-        flags
-      );
-    } else {
-      // The two candidates exceed the lexical permutative value of the
-      // master; this combination will not work so continue on...
-    }
-  }
-}
-
-// CombineSubsets
-// Given an input of a master word/phrase, find all combinations of partial words
-// to create complete anagrams.  Spaces in master word are ignored.
-// Entry: master word/phrase
-//        subset map of partials
-//        output map
-// DEPRECATED
-void CombineSubsets(
-  const char *word,
-  std::map< std::string, int >& subset,
-  std::map< std::string, int >& output,
-  AnagramFlags flags
-)
-{
-  std::map< char, size_t> master_count, candidate_count;
-  GetCharCountMap(master_count, word);
-  std::map<std::string, int>::const_iterator i = subset.begin();
-  while (i != subset.end()) {
-    if (!flags.allow_dupes && !strcmp(i->first.c_str(), word))
-      continue;
-    candidate_count.clear();
-    GetCharCountMap(candidate_count, i->first.c_str());
-    // Here we want to get a starting point for our character count
-    // for the candidate, and compare it against the others.
-    CombineSubsetsRecurse(
-      i->first.c_str(),
-      subset, output,
-      master_count,
-      candidate_count,
-      i,
-      flags
-    );
-    ++i;
-  }
-}
-#endif
 
 // PrintAnagram
 // Prints anagram followed by an endline
@@ -516,13 +399,15 @@ void CombineSubsetsRecurseFast(
   std::map< std::string, int >& output,
   OccupancyHash& master_count,
   OccupancyHash& candidate_count_a,
+  OccupancyHash& candidate_count_b,
+  OccupancyHash *candidate_count_arr[],
   std::map<std::string, int>::const_iterator& start_i,
   AnagramFlags flags,
-  OutputQueue *queue
+  OutputQueue *queue,
+  int depth
 )
 {
   using namespace std;
-  OccupancyHash candidate_count_b;
   for (std::map<std::string, int>::const_iterator i = start_i; i != subset.end(); ++i) {
     // Disallow candidacy of already-processed word if dupes are disallowed.
     if (!flags.allow_dupes && !strcmp(i->first.c_str(), word))
@@ -568,17 +453,22 @@ void CombineSubsetsRecurseFast(
       string output_phrase = word;
       output_phrase += " ";
       output_phrase += i->first;
-      OccupancyHash new_candidate_count;
-      new_candidate_count.GetCharCountMap(output_phrase.c_str());
+      //OccupancyHash new_candidate_count;
+      //new_candidate_count.GetCharCountMap(output_phrase.c_str());
+      candidate_count_arr[depth]->clear();
+      candidate_count_arr[depth]->GetCharCountMap(output_phrase.c_str());
       CombineSubsetsRecurseFast(
         output_phrase.c_str(),
         subset,
         output,
         master_count,
-        new_candidate_count,
+        *candidate_count_arr[depth],
+        candidate_count_b,
+        candidate_count_arr,
         i,
         flags,
-        queue
+        queue,
+        depth + 1
       );
     } else {
       // The two candidates exceed the lexical permutative value of the
@@ -602,7 +492,12 @@ void CombineSubsetsFast(
   OutputQueue *queue
 )
 {
-  OccupancyHash master_count, candidate_count;
+  OccupancyHash master_count, candidate_count_a, candidate_count_b;
+  OccupancyHash *candidate_count_arr[64];
+  for (auto i = 0; i < 64; ++i) {
+    candidate_count_arr[i] = new OccupancyHash();
+  }
+
   master_count.GetCharCountMap(word);
   std::map<std::string, int>::const_iterator i = subset.begin();
   for (auto inc = 0; inc < thread_index; ++inc) {
@@ -615,8 +510,8 @@ void CombineSubsetsFast(
   while (i != subset.end()) {
     if (!flags.allow_dupes && !strcmp(i->first.c_str(), word))
       continue;
-    candidate_count.clear();
-    candidate_count.GetCharCountMap(i->first.c_str()); // count char occurrences
+    candidate_count_a.clear();
+    candidate_count_a.GetCharCountMap(i->first.c_str()); // count char occurrences
 
     // Here we want to get a starting point for our character count
     // for the candidate, and compare it against the others.
@@ -625,16 +520,23 @@ void CombineSubsetsFast(
         subset,
         output,
         master_count,
-        candidate_count,
+        candidate_count_a,
+        candidate_count_b,
+        candidate_count_arr,
         i,
         flags,
-        queue
+        queue,
+        0
     );
     // Increment by cpu count to preserve the task interleaving
     for (size_t inc = 0; inc < cpu_tot; ++inc) {
       if( i != subset.end())
         ++i;
     }
+  }
+
+   for (auto i = 0; i < 64; ++i) {
+    delete candidate_count_arr[i];
   }
 }
 
@@ -671,6 +573,15 @@ void GetAnagrams(
     // Note that this first porion is single-threaded.
     VERBOSE_LOG(LOG_DEBUG, "Step 1: Garner full-word anagrams and partials..." << endl);
 
+    // Get unique character counts for the master word/phrase
+    OccupancyHash master_count(word);
+    OccupancyHash candidate_count;  // reused for each candidate word
+
+    // Step through all the letters in the source word/phrase, avoiding repetitions.
+    // For example, if the phrase is "pussy cat":
+    // - find all words beginning with "p" and matching the character count,
+    //    and mark "p" as done.
+    //      o this will return phrases like
     for (size_t i = 0; i <= word_len; ++i) {
       char c[2] = {0,0};
       *c = word[i];
@@ -687,41 +598,34 @@ void GetAnagrams(
       // Now we'll check the lengths of each word and compare it to our input
       // For the few that match, we'll check and see if they have the same
       // characters.
-      size_t candidate_len = 0;
       for (auto it : extrapolation) {
-        // This checks if the word is in the exclude set;
-        // if so, ignore and continue.
+        // This checks if the word is in the exclude set; if so, ignore and continue.
         if (excludeset.end() != excludeset.find(it.second))
           continue;
 
         const char *candidate = it.second.c_str();
-        // This checkes for a length and character count match; if found
-        // then the word is an anagram so we add it to our output collection.
-        if ((candidate_len = strlen(candidate)) == word_len) {
-          // Does word match against character count?
-          if (MatchCharCounts(candidate, word)) {
-            if (!anagrams.count(candidate)) {
-              if (flags.output_directly) {
-                string out = candidate;
-                out += "\n";
-                queue->Push(out.c_str());
-              } else {
-                anagrams[candidate] = 1;
-                static char out[256];
-                sprintf(out, "\rAnagrams found: %ld    ", anagrams.size());
-                queue->Push(out);
-              }
+
+        candidate_count.clear();
+        candidate_count.GetCharCountMap(candidate);
+
+        int comparison_result = candidate_count.Compare(master_count);
+        if (!comparison_result) { // candidate unique char counts == master?
+          // If we got here, it's a FULL anagram; add it.
+          if (!anagrams.count(candidate)) {
+            if (flags.output_directly) {
+              string out = candidate;
+              out += "\n";
+              queue->Push(out.c_str());
+            } else {
+              anagrams[candidate] = 1;
+              static char out[256];
+              sprintf(out, "\rAnagrams found: %ld    ", anagrams.size());
+              queue->Push(out);
             }
           }
-        } else {
-          // Add partial word matches here:
-          // If the word is smaller than the input AND all of the smaller word's
-          // characters appear in the input (i.e. an unordered subset), then we
-          // then we have a candidate for a partial match provided other word(s)
-          // can fill in the missing characters exactly.
-          if (IsSubset(word, candidate)) {
-            subset[candidate] = 1;    // mark word as a partial
-          }
+        }
+        else if (candidate_count.IsSubset(master_count)) { // candidate char counts < master?
+          subset[candidate] = 1;    // mark word as a partial
         }
       }
     }
@@ -745,11 +649,9 @@ void GetAnagrams(
 
   // Step 2: Now we have a complete set of subsets; we must now combine them to
   // obtain combinations matching the input word character count permutation.
-  if (flags.tree_engine) {
-    //CombineSubsets(word, subset, anagrams, flags);
-  } else {
-    CombineSubsetsFast(word, subset, anagrams, flags, thread_index, queue);
-  }
+  CombineSubsetsFast(word, subset, anagrams, flags, thread_index, queue);
+
+  OccupancyHash::PrintConstructorCalls();
 }
 
 //
