@@ -97,6 +97,10 @@ class OccupancyHash
     VERBOSE_LOG(LOG_INFO, std::endl);
   }
 
+  size_t GetIndexPtr() {
+    return index_ptr_;
+  }
+
   // Compare
   // Returns a modified lexical comparison of two OccupancyHashes.
   // Entry: b hash to compare

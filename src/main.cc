@@ -64,13 +64,12 @@ int GetWordCount(std::ifstream *file)
 {
   int lineTot = std::count(std::istreambuf_iterator<char>(*file),
       std::istreambuf_iterator<char>(), '\n');
-
   file->seekg(0);
   return lineTot;
 }
 
 // ReadDictionaryFile
-// Read dictionary file into our data structure.
+// Read dictionary file into our trie data structure.
 // TODO (RFE): Would be nice to have the tree self-balance
 // instead of reading the sorted file in two halves...
 // Entry: path to file
@@ -181,159 +180,6 @@ void PrintUsage()
   cout << "\t\t-v1 normal [default]" << endl;
   cout << "\t\t-v2 info" << endl;
   cout << "\t\t-v3 debug" << endl;
-}
-
-// GetCharCountMap
-// Returns a map of the # of letters.
-// Example: "fussy" will return
-//  'f' -> 1
-//  's' -> 2
-//  'u' -> 1
-//  'y' -> 1
-// Entry: reference to map
-//        const pointer to word
-// DEPRECATED
-void GetCharCountMap(std::map< char, size_t>& char_count, const char *word)
-{
-  const char *current_char = word;
-  // This counts the characters, ignoring spaces.
-  for (auto i = 0; *current_char; ++i, ++current_char) {
-    if (' ' == *current_char)
-      continue;
-    // std::map<> messiness: if there was no previous count, add it.
-    // Otherwise, increase the count of this character in the word.
-    if (!char_count.count(*current_char)) {
-      char_count[*current_char] = 1;
-    } else {
-      char_count[*current_char] = char_count[*current_char] + 1;
-    }
-  }
-}
-
-// MatchCharCounts
-// Get the per-word character counts and determine if they match.
-// Example: counts for 'live', 'levi', 'veil', 'vile', and 'evil' match.
-// Entry: first word
-//        second word
-// Exit: true == match
-// DEPRECATED
-bool MatchCharCounts(const char *word_a, const char *word_b)
-{
-  bool result = true;  // assume success
-  std::map< char, size_t > char_count_a, char_count_b;
-  GetCharCountMap(char_count_a, word_a);
-  GetCharCountMap(char_count_b, word_b);
-  for (auto i : char_count_a) {
-    if (!(char_count_b.count(i.first))
-      || char_count_b[i.first] != i.second) {
-      result = false;
-      break;
-    }
-  }
-  return result;
-}
-
-// IsSubset
-// Determines if a candidate permutation is a subset of a master word; if all
-// of the characters in the subset occur in the master, and no
-// one uniquei candidate word character exceeds the count for that character
-// in the master then the candidate is a subset of the master.
-// Entry: master word
-//        subset candidate word
-// Exit:  true == candidate word is a subset
-// DEPRECATED
-bool IsSubset(const char *master, const char *candidate)
-{
-  bool result = true; // assume success
-  std::map< char, size_t> master_count, candidate_count;
-  GetCharCountMap(master_count, master);
-  GetCharCountMap(candidate_count, candidate);
-  // Loop through the candidate and ensure that it contains
-  // no characters that are not also part of the master,
-  // and that of the common characters the candidate does not
-  // exceed the count for the master (i.e. candidate has the same or
-  // fewer letter "a"s than master)
-  for (auto i : candidate_count) {
-    if (!master_count.count(i.first)) { // checks if character is common
-      result = false;                   // It isn't; we're done; exit
-      break;
-    }
-    // Check master unique character count ensuring it meets/exceeds candidate
-    if (master_count[i.first] < i.second) {
-      result = false;
-      break;
-    }
-  }
-
-  if (result) {
-    result = true;
-  }
-
-  return result;
-}
-
-// AddAndCompare
-// Adds two candidates and compares them with the permutative lexical
-// value of the master, returning a ternary output.
-// Entry: master lexical count permutation
-//        word a lexical count permutation
-//        worb b lexical count permutation
-// Exit: -1 candidate_a + candidate_b lexically less than master
-//        0 candidate_a + candidate_b match master
-//       +1 candidate_a + candidate_b lexically greater than master
-// DEPRECATED
-int AddAndCompare(
-  std::map< char, size_t>& char_count_master,
-  std::map< char, size_t>& char_count_a,
-  std::map< char, size_t>& char_count_b
-)
-{
-  int result = 0;  // assume match
-
-  // Add a to b, and store in b
-  for (auto i : char_count_a) {   // place a counts in sum
-    if (char_count_b.end() == char_count_b.find(i.first)) {
-      char_count_b[i.first] = i.second;
-    } else {
-      char_count_b[i.first] += i.second;
-    }
-  }
-
-  // Now that we have the lexical sum, we'll just check for subset
-  for (auto i : char_count_b) {
-    // This checks if there is a character in the candidate that
-    // does not appear in the master; exit if so with +1 result.
-    if (char_count_master.end() == char_count_master.find(i.first)) {
-      result = 1;
-      break;
-    }
-    // This checks if a given character count in the candidate exceeds
-    // the count for the same character in the master; if so, exit with +1.
-    if (char_count_master[i.first] < i.second) {
-      result = 1;
-      break;
-    }
-
-    // This checks if a given character count in the candidate is less than
-    // the count for the same character in the master; if so, continue with -1.
-    if (char_count_master[i.first] > i.second) {
-      result = -1;
-    }
-  }
-
-  // In case it looks like a match, need to make sure that no
-  // master characters exist that don't also exist in the candidate...
-  // If any do, then the candidate is lexically less than the master, -1.
-  if (!result) {
-    for (auto i : char_count_master) {
-      if (char_count_b.end() == char_count_b.find(i.first)) {
-        result = -1;
-        break;
-      }
-    }
-  }
-
-  return result;
 }
 
 //
