@@ -168,7 +168,7 @@ void PrintUsage()
   cout << "\t-b Use big dictionary (~423,000 words)" << endl;
   cout << "\t-d Allow duplicates of same work to appear" << endl;
   cout << "\t\tmultiple times in same anagram" << endl;
-  cout << "\t-e exlude (example -ealb,hello,exclude" << endl;
+  cout << "\t-e exclude (example -ealb,hello,exclude" << endl;
   cout << "\t-o Output directly. This is useful for performance for" << endl;
   cout << "\t\tinputs that produce a very large # of anagrams as" << endl;
   cout << "\t\tthe system is not limited by available memory and" << endl;
