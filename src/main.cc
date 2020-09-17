@@ -1,6 +1,6 @@
 /* MIT License
  *
- * Copyright (c) 2018 Greg Hedger
+ * Copyright (c) 2020 Greg Hedger
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -91,7 +91,7 @@ void ReadDictionaryFile(
 
     VERBOSE_LOG(LOG_INFO, "Reading " << lineTot << " words." << std::endl);
 
-    // Begin at middle of file
+    // Skip to middle of file
     while (idx < start) {
       getline(file, line);
       idx++;
@@ -381,7 +381,8 @@ void CombineSubsetsFast(
     }
   }
 
-   for (auto i = 0; i < 64; ++i) {
+  // Clean up
+  for (auto i = 0; i < 64; ++i) {
     delete candidate_count_arr[i];
   }
 }
