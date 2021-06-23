@@ -1,3 +1,5 @@
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "EmptyDeclOrStmt"
 /* MIT License
  *
  * Copyright (c) 2020 Greg Hedger
@@ -21,13 +23,12 @@
  * SOFTWARE.
  */
 
-#include <stdio.h>
-#include <assert.h>
+#include <cstdio>
 #include <memory.h>
 #include <unistd.h>
-#include <signal.h>
+#include <csignal>
 #include <pthread.h>
-#include <time.h>
+#include <ctime>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -62,8 +63,9 @@ std::string& CleanString(std::string& s) {
 // Exit: # of words in files
 int GetWordCount(std::ifstream *file)
 {
-  int lineTot = std::count(std::istreambuf_iterator<char>(*file),
-      std::istreambuf_iterator<char>(), '\n');
+  int lineTot;
+  lineTot = std::count(std::istreambuf_iterator<char>(*file),
+                       std::istreambuf_iterator<char>(), '\n');
   file->seekg(0);
   return lineTot;
 }
@@ -210,7 +212,7 @@ void PrintSubset(std::map< std::string, int >& subset, OutputQueue *queue)
   if (queue) {
     auto column_count = kColCount;
     std::string out;
-    for (auto i : subset) {
+    for (const auto& i : subset) {
       out += i.first;
       if (!--column_count) {
         column_count = kColCount;
@@ -254,7 +256,7 @@ void CombineSubsetsRecurseFast(
 )
 {
   using namespace std;
-  for (std::map<std::string, int>::const_iterator i = start_i; i != subset.end(); ++i) {
+  for (auto i = start_i; i != subset.end(); ++i) {
     // Disallow candidacy of already-processed word if dupes are disallowed.
     if (!flags.allow_dupes && !strcmp(i->first.c_str(), word))
       continue;
@@ -275,7 +277,7 @@ void CombineSubsetsRecurseFast(
       output_phrase += " ";
       output_phrase += i->first;
       if (flags.output_directly) {
-        output_phrase = output_phrase + "\n";
+        output_phrase.append("\n");
         queue->Push(output_phrase.c_str());
       } else {
         subset_lock.Acquire();
@@ -340,8 +342,8 @@ void CombineSubsetsFast(
 {
   OccupancyHash master_count, candidate_count_a, candidate_count_b;
   OccupancyHash *candidate_count_arr[64];
-  for (auto i = 0; i < 64; ++i) {
-    candidate_count_arr[i] = new OccupancyHash();
+  for (auto & i : candidate_count_arr) {
+    i = new OccupancyHash();
   }
 
   master_count.GetCharCountMap(word);
@@ -376,14 +378,13 @@ void CombineSubsetsFast(
     );
     // Increment by cpu count to preserve the task interleaving
     for (size_t inc = 0; inc < cpu_tot; ++inc) {
-      if( i != subset.end())
-        ++i;
+      if (i != subset.end()) { ++i; }
     }
   }
 
   // Clean up
-  for (auto i = 0; i < 64; ++i) {
-    delete candidate_count_arr[i];
+  for (auto & di : candidate_count_arr) {
+    delete di;
   }
 }
 
@@ -433,11 +434,11 @@ void GetAnagrams(
       char c[2] = {0,0};
       *c = word[i];
 
-      if (chars_completed[(size_t)c[0]]) {  // don't repeat letters already done
+      if (chars_completed[(size_t)(unsigned char)c[0]]) {  // don't repeat letters already done
         continue;
       }
 
-      chars_completed[(size_t)c[0]] = 1;
+      chars_completed[(size_t)(unsigned char)c[0]] = 1;
 
       extrapolation.clear();
       t.FuzzyFind((const char *)c, root_node, &extrapolation);
@@ -445,7 +446,7 @@ void GetAnagrams(
       // Now we'll check the lengths of each word and compare it to our input
       // For the few that match, we'll check and see if they have the same
       // characters.
-      for (auto it : extrapolation) {
+      for (const auto& it : extrapolation) {
         // This checks if the word is in the exclude set; if so, ignore and continue.
         if (excludeset.end() != excludeset.find(it.second))
           continue;
@@ -529,7 +530,7 @@ struct AnagramWorkerParams {
 // Exit: (ignored)
 void *Worker(void *worker_params)
 {
-  AnagramWorkerParams *params = (AnagramWorkerParams *) worker_params;
+  auto *params = (AnagramWorkerParams *) worker_params;
 
   GetAnagrams(
     *params->trie,
@@ -553,7 +554,7 @@ void *Worker(void *worker_params)
 
 // initThreads
 //
-void RunJob(const int thread_tot, AnagramWorkerParams *params)
+void RunJob(const unsigned int thread_tot, AnagramWorkerParams *params)
 {
   // Our one and only output queue runs on its own thread
   OutputQueue queue;
@@ -565,7 +566,7 @@ void RunJob(const int thread_tot, AnagramWorkerParams *params)
   cpu_tot = thread_tot; // assume 1-to-1 correlation between threads and cpus
 
   // Allocate thread parameter blocks
-  AnagramWorkerParams *thread_params =
+  auto *thread_params =
     (AnagramWorkerParams *) malloc(sizeof(AnagramWorkerParams) * thread_tot);
   if (thread_params) {
   } else {
@@ -573,7 +574,7 @@ void RunJob(const int thread_tot, AnagramWorkerParams *params)
     return;
   }
 
-  pthread_t *pthread_struct = (pthread_t *) malloc(thread_tot * sizeof(pthread_t));
+  auto *pthread_struct = (pthread_t *) malloc(thread_tot * sizeof(pthread_t));
   if (!pthread_struct) {
     free(thread_params);
     VERBOSE_LOG(LOG_NONE, "Allocation error(2)" << std::endl);
@@ -585,7 +586,7 @@ void RunJob(const int thread_tot, AnagramWorkerParams *params)
   // here.
   std::map< std::string, int > subset;
   // This adds all the threads
-  int error = 0;
+  int error;
   for (auto i = 0; i < thread_tot; ++i) {
     memcpy(thread_params + i, params, sizeof(AnagramWorkerParams));
     thread_params[i].thread_index = i;  // set cpu index
@@ -593,7 +594,7 @@ void RunJob(const int thread_tot, AnagramWorkerParams *params)
     thread_params[i].queue = &queue;  // set the common working set
     error = pthread_create(
       &pthread_struct[i],
-      NULL,
+      nullptr,
       &Worker,
       (void *)(thread_params + i));
     if (error) {
@@ -606,7 +607,7 @@ void RunJob(const int thread_tot, AnagramWorkerParams *params)
     // Wait a few milliseconds to allow first thread to get in
     if (!i) {
       struct timespec ts = {0, 10000000L };
-      nanosleep(&ts, NULL);
+      nanosleep(&ts, nullptr);
     }
 
     ++thread_total;
@@ -623,12 +624,8 @@ void RunJob(const int thread_tot, AnagramWorkerParams *params)
   pthread_join(pthread_struct[6],&result);
 
   // Clean up and get out
-  if (pthread_struct)
-    free(pthread_struct);
-  if (thread_params)
-    free(thread_params);
-
-  return;
+  free(pthread_struct);
+  free(thread_params);
 }
 } // namespace anagram
 
@@ -643,7 +640,7 @@ void RunJob(const int thread_tot, AnagramWorkerParams *params)
 void SigtermHandler(int signal)
 {
   std::cout << COUT_SHOWCURSOR << COUT_NORMAL_WHITE << std::endl;
-  setvbuf(stdout, NULL, _IONBF, 1024);  // TODO: Way to restore actual orig.?
+  setvbuf(stdout, nullptr, _IONBF, 1024);  // TODO: Way to restore actual orig.?
   exit(1);
 }
 
@@ -660,23 +657,23 @@ int main(int argc, const char *argv[])
   // Here we set up our trie data structure, used to organize the dictionary
   // words for fast lookup. Will read it later after we've gathered our input
   // arguments since they can affect what is read.
-  TNode *root_node = NULL;
+  TNode *root_node = nullptr;
   TernaryTree trie;
   trie.SetRoot(&root_node);
 
   // This  sets up a signal handler to re-show the cursor if user ctrl-c's
-  struct sigaction sigIntHandler;
+  struct sigaction sigIntHandler{};
   sigIntHandler.sa_handler = SigtermHandler;
   sigemptyset(&sigIntHandler.sa_mask);
   sigIntHandler.sa_flags = 0;
-  sigaction(SIGINT, &sigIntHandler, NULL);
+  sigaction(SIGINT, &sigIntHandler, nullptr);
 
   // Sets a sane level that allows UI but not debug messages
   SET_VERBOSITY_LEVEL(LOG_NORMAL);
 
   // This parses the arguments and takes subsequent non-dashed arguments
   // as the input (no quotes required)
-  AnagramFlags flags;
+  AnagramFlags flags{};
   memset(&flags, 0, sizeof(flags));
   flags.tree_engine = flags.allow_dupes = flags.output_directly
     = flags.big_dictionary = 0;
@@ -692,9 +689,9 @@ int main(int argc, const char *argv[])
         }
         switch(argv[i][1]) {
           case 'v': {
-              int verbosity;
+              char verbosity;
               if (isdigit(verbosity = argv[i][2])) {
-                LOG_LEVEL log_level = (LOG_LEVEL) (verbosity - (int) '0');
+                auto log_level = (LOG_LEVEL) (verbosity - (int) '0');
                 SET_VERBOSITY_LEVEL(log_level);
               }
             }
@@ -774,7 +771,7 @@ int main(int argc, const char *argv[])
   //setvbuf(stdout, NULL, _IONBF, 0);
 
   // turns off buffering so text updates show up on console immediately.
-  setbuf(stdout, NULL);
+  setbuf(stdout, nullptr);
 
   // This reads the dictionary file and gathers all the anagrams
   // from our source word.
@@ -798,7 +795,7 @@ int main(int argc, const char *argv[])
   map< string, int > anagrams;  // container for anagram strings
   trie.SetMaxDifference(0);  // Do not clamp by Levenshtein distance
 
-  AnagramWorkerParams params;
+  AnagramWorkerParams params{};
   params.trie = &trie;
   params.root_node = root_node;
   params.word = word.c_str();
@@ -809,6 +806,7 @@ int main(int argc, const char *argv[])
 
   unsigned core_tot = std::thread::hardware_concurrency();
   if (core_tot > 1) {
+    // Don't use ALL the cores; use cores - 1
     core_tot -= 1;
   } else {
     core_tot = 1;
@@ -823,7 +821,7 @@ int main(int argc, const char *argv[])
       << COUT_BOLD_WHITE << word.c_str()
       << COUT_BOLD_YELLOW << endl);
     int count = 0;
-    for (auto i : anagrams) {
+    for (const auto& i : anagrams) {
       cout << i.first << endl;
       ++count;
     }
@@ -831,6 +829,7 @@ int main(int argc, const char *argv[])
   }
   VERBOSE_LOG(LOG_NONE, COUT_NORMAL_WHITE << COUT_SHOWCURSOR << endl);
 
-  setvbuf(stdout, NULL, _IONBF, 1024);  // TODO: Way to restore actual orig.?
+  setvbuf(stdout, nullptr, _IONBF, 1024);  // TODO: Way to restore actual orig.?
   return 0;
 }
+#pragma clang diagnostic pop

@@ -6,8 +6,6 @@
 
 #include "anagram_log.h"
 
-
-
 namespace anagram {
 
 // OccupancyHash
